@@ -11,7 +11,9 @@ import {
   UserCircle,
   Table as TableIcon,
   Sparkles,
-  Database
+  Database,
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 import { CurrentUser, League } from '../types';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
@@ -21,6 +23,7 @@ interface HeaderProps {
   setActiveTab: (tab: string) => void;
   currentUser: CurrentUser;
   onOpenAuth: () => void;
+  onLogout?: () => void;
   isPredictionsLocked: boolean;
   selectedLeagueId: string;
   onSelectLeague: (leagueId: string) => void;
@@ -32,6 +35,7 @@ export const Header: React.FC<HeaderProps> = ({
   setActiveTab,
   currentUser,
   onOpenAuth,
+  onLogout,
   isPredictionsLocked,
   selectedLeagueId,
   onSelectLeague,
@@ -132,29 +136,43 @@ export const Header: React.FC<HeaderProps> = ({
               </select>
             </div>
 
-            {/* User Profile Pill */}
-            <button
-              id="user-profile-button"
-              onClick={onOpenAuth}
-              className="flex items-center gap-2 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 rounded-xl px-3 py-1.5 transition-all text-left group"
-            >
-              <div className="w-7 h-7 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs border border-purple-500/30">
-                {currentUser.name.charAt(0)}
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-xs font-semibold text-white leading-tight flex items-center gap-1.5">
-                  {currentUser.name}
-                  {currentUser.isAdmin && (
-                    <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 rounded font-bold border border-amber-500/30">
-                      ADMIN
-                    </span>
-                  )}
+            {/* User Profile Pill & Sign Out */}
+            <div className="flex items-center gap-1.5">
+              <button
+                id="user-profile-button"
+                onClick={onOpenAuth}
+                className="flex items-center gap-2 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-purple-500/50 rounded-xl px-3 py-1.5 transition-all text-left group"
+                title="Edit profile & preferences"
+              >
+                <div className="w-7 h-7 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-bold text-xs border border-purple-500/30">
+                  {currentUser.name.charAt(0)}
                 </div>
-                <div className="text-[10px] text-purple-300/80 truncate max-w-[120px]">
-                  {currentUser.teamName || 'Set Team Name'}
+                <div className="hidden sm:block">
+                  <div className="text-xs font-semibold text-white leading-tight flex items-center gap-1.5">
+                    {currentUser.name}
+                    {currentUser.isAdmin && (
+                      <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1 rounded font-bold border border-amber-500/30">
+                        ADMIN
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-purple-300/80 truncate max-w-[120px]">
+                    {currentUser.teamName || 'Set Team Name'}
+                  </div>
                 </div>
-              </div>
-            </button>
+              </button>
+
+              {onLogout && (
+                <button
+                  id="user-logout-button"
+                  onClick={onLogout}
+                  className="p-2 rounded-xl bg-slate-900/90 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-700/60 text-slate-400 hover:text-rose-300 transition-all"
+                  title="Sign out of account"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

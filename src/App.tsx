@@ -47,6 +47,7 @@ import { LeaguesManager } from './components/LeaguesManager';
 import { AdminConsole } from './components/AdminConsole';
 import { DeploymentGuide } from './components/DeploymentGuide';
 import { AuthModal } from './components/AuthModal';
+import { LoginPage } from './components/LoginPage';
 
 export default function App() {
   // Navigation State
@@ -56,7 +57,7 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
 
   // App Data State
-  const [currentUser, setCurrentUser] = useState<CurrentUser>(() => storage.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => storage.getCurrentUser());
   const [submissions, setSubmissions] = useState<UserPredictionSubmission[]>(() => storage.getSubmissions());
   const [categories, setCategories] = useState<PredictionCategory[]>(() => storage.getCategories());
   const [actualOutcomes, setActualOutcomes] = useState<ActualOutcomes>(() => storage.getActualOutcomes());
@@ -67,7 +68,7 @@ export default function App() {
 
   // User Current Draft Predictions State
   const [currentTablePrediction, setCurrentTablePrediction] = useState<string[]>(() => {
-    const existing = storage.getUserSubmission(currentUser.id);
+    const existing = currentUser ? storage.getUserSubmission(currentUser.id) : undefined;
     if (existing && existing.tablePrediction?.length === 20) {
       return existing.tablePrediction;
     }
@@ -75,7 +76,7 @@ export default function App() {
   });
 
   const [currentBespokePredictions, setCurrentBespokePredictions] = useState<Record<string, string>>(() => {
-    const existing = storage.getUserSubmission(currentUser.id);
+    const existing = currentUser ? storage.getUserSubmission(currentUser.id) : undefined;
     return existing?.bespokePredictions || {};
   });
 
@@ -123,6 +124,7 @@ export default function App() {
 
   // Sync draft whenever user changes
   useEffect(() => {
+    if (!currentUser) return;
     const existing = storage.getUserSubmission(currentUser.id);
     if (existing) {
       if (existing.tablePrediction?.length === 20) {
@@ -130,7 +132,20 @@ export default function App() {
       }
       setCurrentBespokePredictions(existing.bespokePredictions || {});
     }
-  }, [currentUser.id]);
+  }, [currentUser?.id]);
+
+  // If no user is logged in, show dedicated Login / Registration Gateway
+  if (!currentUser) {
+    return (
+      <LoginPage
+        onLogin={(user) => {
+          storage.setCurrentUser(user);
+          setCurrentUser(user);
+        }}
+        adminSettings={adminSettings}
+      />
+    );
+  }
 
   // Current User's active submission object
   const userSubmission = submissions.find(s => s.userId === currentUser.id);
@@ -244,6 +259,11 @@ export default function App() {
     setTimeout(() => setSubmitToast(null), 4000);
   };
 
+  const handleLogout = () => {
+    storage.setCurrentUser(null);
+    setCurrentUser(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Global Navigation Header */}
@@ -252,6 +272,7 @@ export default function App() {
         setActiveTab={(t) => setActiveTab(t as any)}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onLogout={handleLogout}
         isPredictionsLocked={adminSettings.isPredictionsLocked}
         selectedLeagueId={selectedLeagueId}
         onSelectLeague={setSelectedLeagueId}

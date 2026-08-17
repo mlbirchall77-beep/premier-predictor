@@ -9,7 +9,7 @@ export const INITIAL_LEAGUES: League[] = [
     adminId: 'admin_1',
     adminName: 'Mark Birchall',
     isPublic: true,
-    description: 'The official global league for all Premier League 2026/27 predictors worldwide.',
+    description: 'The global league for all Premier League 2026/27 predictors worldwide.',
     createdAt: '2026-08-01T00:00:00Z',
     memberCount: 8,
   },

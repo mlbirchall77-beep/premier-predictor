@@ -27,7 +27,8 @@ import {
   EyeOff,
   KeyRound,
   Mail,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import { 
   ActualOutcomes, 
@@ -107,6 +108,30 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   const [userFormError, setUserFormError] = useState<string | null>(null);
   const [userSuccessMessage, setUserSuccessMessage] = useState<string | null>(null);
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
+
+  // Local unlock state for admin portal
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(
+    Boolean(currentUser.isAdmin && currentUser.isAdminAuthenticated)
+  );
+  const [unlockPassword, setUnlockPassword] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+
+  const handleUnlockAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setUnlockError(null);
+    const expected = adminSettings.adminPassword || 'admin';
+    if (unlockPassword === expected) {
+      setIsUnlocked(true);
+      // Also update storage current user if applicable
+      storage.setCurrentUser({
+        ...currentUser,
+        isAdmin: true,
+        isAdminAuthenticated: true,
+      });
+    } else {
+      setUnlockError('Incorrect administrator password. Access denied.');
+    }
+  };
 
   // Mini-league creation form inside admin
   const [adminNewLeagueName, setAdminNewLeagueName] = useState('');
@@ -271,6 +296,62 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     setActionSuccessNotice('🌱 Sample demo predictor submissions reloaded.');
     setTimeout(() => setActionSuccessNotice(null), 4000);
   };
+
+  if (!isUnlocked) {
+    return (
+      <div className="max-w-md mx-auto my-12 bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
+          <KeyRound className="w-8 h-8" />
+        </div>
+
+        <div>
+          <h2 className="text-xl font-bold text-white font-['Outfit']">
+            Admin Access Required
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">
+            This management portal controls scoring outcomes, season locking, and database records. Please enter the master administrator password to continue.
+          </p>
+        </div>
+
+        <form onSubmit={handleUnlockAdmin} className="space-y-4 text-left">
+          {unlockError && (
+            <div className="p-3 bg-rose-950/80 border border-rose-700 rounded-xl text-xs text-rose-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{unlockError}</span>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-semibold text-amber-300 mb-1.5 flex items-center gap-1">
+              <KeyRound className="w-3.5 h-3.5" />
+              Master Admin Password / PIN
+            </label>
+            <input
+              type="password"
+              required
+              placeholder="Enter admin password..."
+              value={unlockPassword}
+              onChange={(e) => {
+                setUnlockPassword(e.target.value);
+                setUnlockError(null);
+              }}
+              className="w-full bg-slate-950 border border-amber-600/60 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+            />
+            <p className="text-[10px] text-slate-500 mt-1">
+              Default password is <code className="text-amber-400 font-bold">admin</code> (customizable inside Admin Settings).
+            </p>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-600/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <ShieldCheck className="w-4 h-4" /> Unlock Admin Console
+          </button>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -889,7 +970,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
           {/* Admin Create League Form */}
           <form onSubmit={handleAdminCreateLeague} className="p-4 rounded-xl bg-purple-950/30 border border-purple-800/50 space-y-3">
             <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-              <Plus className="w-4 h-4" /> Create New Official or Private Mini-League
+              <Plus className="w-4 h-4" /> Create New Public or Private Mini-League
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input
@@ -1161,7 +1242,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 Resolve Actual Outcomes & Award Winners
               </h2>
               <p className="text-xs text-slate-400 mt-1">
-                Enter the official winning outcome for each category to automatically trigger live scoring for all predictors.
+                Enter the confirmed winning outcome for each category to automatically trigger live scoring for all predictors.
               </p>
             </div>
 
@@ -1216,7 +1297,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   ) : (
                     <input
                       type="text"
-                      placeholder="Type official winner..."
+                      placeholder="Type confirmed winner..."
                       value={currentWinner}
                       onChange={(e) => {
                         setEditingActuals({

@@ -232,7 +232,7 @@ export const LeaguesManager: React.FC<LeaguesManagerProps> = ({
                     <div>
                       <h3 className="font-bold text-sm text-white">{league.name}</h3>
                       <span className="text-[10px] text-slate-400">
-                        {isGlobal ? 'Official Worldwide' : `Admin: ${league.adminName}`}
+                        {isGlobal ? 'Global Worldwide' : `Admin: ${league.adminName}`}
                       </span>
                     </div>
                   </div>

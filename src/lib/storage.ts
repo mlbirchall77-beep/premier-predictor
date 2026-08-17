@@ -34,14 +34,14 @@ const KEYS = {
   USER_ACCOUNTS: 'premier_predictor_registered_users_2026',
 };
 
-const OFFICIAL_GLOBAL_LEAGUE: League = {
+const GLOBAL_LEAGUE_DEFAULT: League = {
   id: 'global',
   name: 'Premier League Global 2026/27',
   code: 'PL2627',
   adminId: 'admin_1',
   adminName: 'Premier Predictor Admin',
   isPublic: true,
-  description: 'The official global league for all Premier League 2026/27 predictors worldwide.',
+  description: 'The global league for all Premier League 2026/27 predictors worldwide.',
   createdAt: '2026-08-01T00:00:00Z',
   memberCount: 1,
 };
@@ -77,19 +77,20 @@ export const storage = {
   },
 
   // Current User
-  getCurrentUser(): CurrentUser {
-    return safeGet<CurrentUser>(KEYS.CURRENT_USER, {
-      id: 'user_1',
-      name: 'Mark Birchall',
-      email: 'mlbirchall@yahoo.co.uk',
-      teamName: 'The Invincible Pundits',
-      isAdmin: true,
-      isAdminAuthenticated: true,
-    });
+  getCurrentUser(): CurrentUser | null {
+    return safeGet<CurrentUser | null>(KEYS.CURRENT_USER, null);
   },
 
-  setCurrentUser(user: CurrentUser): void {
-    safeSet(KEYS.CURRENT_USER, user);
+  setCurrentUser(user: CurrentUser | null): void {
+    if (user === null) {
+      try {
+        localStorage.removeItem(KEYS.CURRENT_USER);
+      } catch (e) {
+        console.error('Error removing user session:', e);
+      }
+    } else {
+      safeSet(KEYS.CURRENT_USER, user);
+    }
   },
 
   // Submissions
@@ -329,7 +330,7 @@ export const storage = {
   // Leagues
   getLeagues(): League[] {
     const isCleared = this.isDemoCleared();
-    const fallback = isCleared ? [OFFICIAL_GLOBAL_LEAGUE] : INITIAL_LEAGUES;
+    const fallback = isCleared ? [GLOBAL_LEAGUE_DEFAULT] : INITIAL_LEAGUES;
     return safeGet<League[]>(KEYS.LEAGUES, fallback);
   },
 
@@ -453,8 +454,8 @@ export const storage = {
     const cleanSubs = currentSub ? [currentSub] : [];
     this.saveSubmissions(cleanSubs);
 
-    // Reset leagues to only the official Global League
-    this.saveLeagues([OFFICIAL_GLOBAL_LEAGUE]);
+    // Reset leagues to only the global league
+    this.saveLeagues([GLOBAL_LEAGUE_DEFAULT]);
 
     // Reset metrics
     const cleanMetrics: SiteMetrics = {

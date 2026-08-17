@@ -95,8 +95,8 @@ CREATE TABLE IF NOT EXISTS public.predictions (
 -- 6. ACTUAL OUTCOMES & WINNERS TABLE (Admin-Resolved)
 CREATE TABLE IF NOT EXISTS public.actual_outcomes (
     id VARCHAR(50) PRIMARY KEY DEFAULT 'season_2026_27',
-    table_standings JSONB NOT NULL, -- Official live 1st to 20th team IDs
-    bespoke_results JSONB NOT NULL, -- Map of category_id -> official winning winner
+    table_standings JSONB NOT NULL, -- Live 1st to 20th team IDs
+    bespoke_results JSONB NOT NULL, -- Map of category_id -> confirmed winning outcome
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -140,7 +140,7 @@ CREATE POLICY "Members readable by all" ON public.league_members FOR SELECT USIN
 
 -- Insert Default Global League
 INSERT INTO public.leagues (id, name, code, is_public, description)
-VALUES ('00000000-0000-0000-0000-000000000001', 'Premier League Global 2026/27', 'PL2627', TRUE, 'Official worldwide league')
+VALUES ('00000000-0000-0000-0000-000000000001', 'Premier League Global 2026/27', 'PL2627', TRUE, 'Global worldwide league')
 ON CONFLICT (code) DO NOTHING;
 `;
 
@@ -297,7 +297,7 @@ VITE_APP_ENV="production"
               <ul className="text-xs text-slate-300 space-y-2 list-disc list-inside">
                 <li><strong>Supabase Database Creation</strong>: Creating free Supabase project and running provided SQL script (1-time, ~2 mins).</li>
                 <li><strong>Setting Season Lock Date</strong>: Toggling "Lock Submissions" in Admin Console when Gameweek 1 kicks off.</li>
-                <li><strong>Resolving Award Winners</strong>: Selecting official winners in the Admin Console (e.g., Golden Boot, Ballon d'Or, Sacked Managers) when officially announced.</li>
+                <li><strong>Resolving Award Winners</strong>: Selecting winners in the Admin Console (e.g., Golden Boot, Ballon d'Or, Sacked Managers) as they are confirmed.</li>
                 <li><strong>Adding Custom Bespoke Categories</strong>: Creating non-default questions (e.g., "Lowest Scoring Team") via Admin category form.</li>
                 <li><strong>Linking GitHub to Vercel</strong>: Selecting <code>main</code> branch in Vercel project settings (1-time setup).</li>
               </ul>
