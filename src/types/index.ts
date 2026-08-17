@@ -117,6 +117,9 @@ export interface AdminSettings {
   autoSyncLiveApi: boolean;
   apiProvider: 'football-data' | 'mock-simulator' | 'custom-json';
   apiKey: string;
+  adminPassword?: string;
+  adminEmail?: string;
+  onlyAdminCanManageLeagues?: boolean;
 }
 
 export interface CurrentUser {
@@ -125,4 +128,17 @@ export interface CurrentUser {
   email: string;
   teamName: string;
   isAdmin: boolean;
+  isAdminAuthenticated?: boolean;
 }
+
+export interface AppUserAccount {
+  id: string;
+  name: string;
+  email: string;
+  teamName: string;
+  password?: string;
+  isAdmin?: boolean;
+  createdAt: string;
+  isRegisteredByAdmin?: boolean;
+}
+

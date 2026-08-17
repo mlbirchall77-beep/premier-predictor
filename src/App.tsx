@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Trophy, 
@@ -17,7 +17,8 @@ import {
   ArrowRight,
   TrendingUp,
   Layers,
-  Award
+  Award,
+  Database
 } from 'lucide-react';
 
 import { 
@@ -31,6 +32,8 @@ import {
   UserPredictionSubmission 
 } from './types';
 import { storage } from './lib/storage';
+import { supabaseService } from './lib/supabaseService';
+import { isSupabaseConfigured } from './lib/supabaseClient';
 import { fetchPremierLeagueStandings } from './lib/footballApi';
 import { PREMIER_LEAGUE_TEAMS_2026_27 } from './data/teams2026';
 import { calculateSubmissionScore } from './lib/scoring';
@@ -78,6 +81,38 @@ export default function App() {
 
   const [submitToast, setSubmitToast] = useState<string | null>(null);
   const [isSyncingApi, setIsSyncingApi] = useState(false);
+
+  // Initial Sync from Supabase if configured
+  const syncFromSupabase = useCallback(async () => {
+    if (!supabaseService.isConfigured()) return;
+    try {
+      const remoteData = await supabaseService.fetchLiveDatabase();
+      if (remoteData) {
+        if (remoteData.submissions) {
+          storage.saveSubmissions(remoteData.submissions);
+          setSubmissions(remoteData.submissions);
+        }
+        if (remoteData.leagues && remoteData.leagues.length > 0) {
+          storage.saveLeagues(remoteData.leagues);
+          setLeagues(remoteData.leagues);
+        }
+        if (remoteData.categories && remoteData.categories.length > 0) {
+          storage.saveCategories(remoteData.categories);
+          setCategories(remoteData.categories);
+        }
+        if (remoteData.actualOutcomes) {
+          storage.saveActualOutcomes(remoteData.actualOutcomes);
+          setActualOutcomes(remoteData.actualOutcomes);
+        }
+      }
+    } catch (err) {
+      console.warn('Initial Supabase fetch error:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncFromSupabase();
+  }, [syncFromSupabase]);
 
   // Track page hit on mount
   useEffect(() => {
@@ -186,6 +221,26 @@ export default function App() {
     }
     setIsSyncingApi(false);
     setSubmitToast(result.message);
+    setTimeout(() => setSubmitToast(null), 4000);
+  };
+
+  const handleClearDemoData = async () => {
+    await storage.clearDemoData(currentUser);
+    setSubmissions(storage.getSubmissions());
+    setLeagues(storage.getLeagues());
+    setMetrics(storage.getMetrics());
+    setSubmitToast('🧹 Demo data cleared! The platform is now ready for production users.');
+    setTimeout(() => setSubmitToast(null), 4000);
+  };
+
+  const handleSeedDemoData = () => {
+    storage.seedDemoData();
+    setSubmissions(storage.getSubmissions());
+    setLeagues(storage.getLeagues());
+    setCategories(storage.getCategories());
+    setActualOutcomes(storage.getActualOutcomes());
+    setMetrics(storage.getMetrics());
+    setSubmitToast('🌱 Sample demo predictor entries reloaded.');
     setTimeout(() => setSubmitToast(null), 4000);
   };
 
@@ -359,8 +414,19 @@ export default function App() {
               setSelectedLeagueId(lId);
               setActiveTab('leaderboard');
             }}
+            onDeleteLeague={(lId) => {
+              storage.deleteLeague(lId);
+              setLeagues(storage.getLeagues());
+              setSubmissions(storage.getSubmissions());
+              if (selectedLeagueId === lId) {
+                setSelectedLeagueId('global');
+              }
+              setSubmitToast('🗑️ Mini-league deleted successfully.');
+              setTimeout(() => setSubmitToast(null), 3000);
+            }}
             selectedLeagueId={selectedLeagueId}
             currentUser={currentUser}
+            adminSettings={adminSettings}
           />
         )}
 
@@ -396,14 +462,35 @@ export default function App() {
               setSubmissions(storage.getSubmissions());
             }}
             onDeleteSubmission={(subId) => {
-              const remaining = submissions.filter(s => s.id !== subId);
-              storage.saveSubmissions(remaining);
-              setSubmissions(remaining);
+              storage.deleteSubmission(subId);
+              setSubmissions(storage.getSubmissions());
+            }}
+            onDeleteUserAndData={(userId) => {
+              storage.deleteUserAndData(userId);
+              setSubmissions(storage.getSubmissions());
+              setLeagues(storage.getLeagues());
+              setSubmitToast('🗑️ User and all their predictions removed.');
+              setTimeout(() => setSubmitToast(null), 3000);
+            }}
+            leagues={leagues}
+            onCreateLeague={handleCreateLeague}
+            onDeleteLeague={(lId) => {
+              storage.deleteLeague(lId);
+              setLeagues(storage.getLeagues());
+              setSubmissions(storage.getSubmissions());
+              if (selectedLeagueId === lId) {
+                setSelectedLeagueId('global');
+              }
+              setSubmitToast('🗑️ Mini-league deleted successfully.');
+              setTimeout(() => setSubmitToast(null), 3000);
             }}
             metrics={metrics}
             currentUser={currentUser}
             onSyncApi={handleSyncApi}
             isSyncing={isSyncingApi}
+            onClearDemoData={handleClearDemoData}
+            onSeedDemoData={handleSeedDemoData}
+            onSyncSupabase={syncFromSupabase}
           />
         )}
 
@@ -425,7 +512,10 @@ export default function App() {
           <div className="flex items-center gap-4 text-slate-400">
             <span>Repository: <code className="text-purple-400">mlbirchall77-beep/premier-predictor</code></span>
             <span>•</span>
-            <span>Vercel + Supabase Ready</span>
+            <span className="flex items-center gap-1">
+              <Database className="w-3 h-3 text-emerald-400" />
+              {isSupabaseConfigured ? 'Connected to Supabase PostgreSQL' : 'Local Persistence Engine'}
+            </span>
           </div>
         </div>
       </footer>
@@ -439,7 +529,9 @@ export default function App() {
           storage.setCurrentUser(u);
           setCurrentUser(u);
         }}
+        adminSettings={adminSettings}
       />
+
     </div>
   );
 }

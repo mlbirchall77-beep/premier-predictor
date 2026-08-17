@@ -10,9 +10,11 @@ import {
   Unlock, 
   UserCircle,
   Table as TableIcon,
-  Sparkles
+  Sparkles,
+  Database
 } from 'lucide-react';
 import { CurrentUser, League } from '../types';
+import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 interface HeaderProps {
   activeTab: string;
@@ -51,9 +53,21 @@ export const Header: React.FC<HeaderProps> = ({
 
           <div className="flex items-center gap-4 text-[11px]">
             <div className="flex items-center gap-1.5">
+              {isSupabaseConfigured ? (
+                <span className="inline-flex items-center gap-1 text-emerald-300 font-semibold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-700/60">
+                  <Database className="w-3 h-3 text-emerald-400" /> PostgreSQL Live
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-slate-300 font-normal bg-slate-900/60 px-2 py-0.5 rounded border border-slate-700/60">
+                  <Database className="w-3 h-3 text-slate-400" /> Local Storage
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5">
               {isPredictionsLocked ? (
                 <span className="inline-flex items-center gap-1 text-amber-400 font-medium bg-amber-950/50 px-2 py-0.5 rounded border border-amber-800/50">
-                  <Lock className="w-3 h-3" /> Locked for Season
+                  <Lock className="w-3 h-3" /> Locked
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-emerald-400 font-medium bg-emerald-950/50 px-2 py-0.5 rounded border border-emerald-800/50">

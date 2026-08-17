@@ -7,7 +7,7 @@ export const INITIAL_LEAGUES: League[] = [
     name: 'Premier League Global 2026/27',
     code: 'PL2627',
     adminId: 'admin_1',
-    adminName: 'Premier Predictor Admin',
+    adminName: 'Mark Birchall',
     isPublic: true,
     description: 'The official global league for all Premier League 2026/27 predictors worldwide.',
     createdAt: '2026-08-01T00:00:00Z',
@@ -18,7 +18,7 @@ export const INITIAL_LEAGUES: League[] = [
     name: 'Tactical Banter & Co',
     code: 'BANTER',
     adminId: 'user_1',
-    adminName: 'Josh Birchall',
+    adminName: 'Mark Birchall',
     isPublic: false,
     description: 'Private office predictions league with weekly bragging rights.',
     createdAt: '2026-08-10T12:00:00Z',
@@ -81,9 +81,9 @@ export const INITIAL_SUBMISSIONS: UserPredictionSubmission[] = [
   {
     id: 'sub_1',
     userId: 'user_1',
-    userName: 'Josh Birchall',
+    userName: 'Mark Birchall',
     teamName: 'The Invincible Pundits',
-    email: 'joshbirchall9@gmail.com',
+    email: 'mlbirchall@yahoo.co.uk',
     createdAt: '2026-08-14T09:15:00Z',
     updatedAt: '2026-08-14T09:15:00Z',
     isLocked: true,
@@ -423,4 +423,8 @@ export const INITIAL_ADMIN_SETTINGS: AdminSettings = {
   autoSyncLiveApi: true,
   apiProvider: 'football-data',
   apiKey: '',
+  adminEmail: 'mlbirchall@yahoo.co.uk',
+  adminPassword: 'admin',
+  onlyAdminCanManageLeagues: true,
 };
+

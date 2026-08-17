@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { X, UserCircle, Shield, Sparkles, Check, LogIn } from 'lucide-react';
-import { CurrentUser } from '../types';
+import { X, UserCircle, Shield, Sparkles, Check, LogIn, Lock, KeyRound, AlertCircle } from 'lucide-react';
+import { AdminSettings, CurrentUser } from '../types';
+import { storage } from '../lib/storage';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: CurrentUser;
   onSaveUser: (user: CurrentUser) => void;
+  adminSettings: AdminSettings;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -14,32 +16,69 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   currentUser,
   onSaveUser,
+  adminSettings,
 }) => {
   const [name, setName] = useState(currentUser.name);
   const [teamName, setTeamName] = useState(currentUser.teamName);
   const [email, setEmail] = useState(currentUser.email);
   const [isAdmin, setIsAdmin] = useState(currentUser.isAdmin);
+  const [userPasswordInput, setUserPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
+  const defaultAdminEmail = adminSettings.adminEmail || 'mlbirchall@yahoo.co.uk';
+  const expectedAdminPassword = adminSettings.adminPassword || 'admin';
+
+  // Check if this email is in registered user accounts
+  const registeredAccounts = storage.getUserAccounts();
+  const registeredMatch = registeredAccounts.find(
+    (acc) => acc.email.toLowerCase() === email.trim().toLowerCase()
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordError(null);
+
+    const trimmedEmail = email.trim().toLowerCase();
+    let verifiedAdmin = false;
+
+    // Check if account is a registered user account with password
+    if (registeredMatch) {
+      if (userPasswordInput && userPasswordInput !== registeredMatch.password) {
+        setPasswordError(`Incorrect password for registered account "${registeredMatch.email}".`);
+        return;
+      }
+      if (registeredMatch.isAdmin) {
+        verifiedAdmin = true;
+      }
+    }
+
+    // If user claims admin role or enters the designated admin email
+    if (isAdmin || trimmedEmail === defaultAdminEmail.toLowerCase()) {
+      if (currentUser.isAdminAuthenticated && currentUser.email.toLowerCase() === defaultAdminEmail.toLowerCase()) {
+        // Already authenticated in current session
+        verifiedAdmin = true;
+      } else if (userPasswordInput === expectedAdminPassword || (registeredMatch && registeredMatch.isAdmin && userPasswordInput === registeredMatch.password)) {
+        // Correct password supplied
+        verifiedAdmin = true;
+      } else {
+        // Wrong or missing password
+        setPasswordError('Invalid Admin Password. Only the authorized administrator with the master password can access admin features.');
+        return;
+      }
+    }
+
     onSaveUser({
       ...currentUser,
-      name: name.trim() || 'Predictor',
-      teamName: teamName.trim() || 'My Fantasy XI',
-      email: email.trim() || 'user@example.com',
-      isAdmin,
+      name: name.trim() || (registeredMatch?.name ?? 'Predictor'),
+      teamName: teamName.trim() || (registeredMatch?.teamName ?? 'My Fantasy XI'),
+      email: trimmedEmail || 'user@example.com',
+      isAdmin: verifiedAdmin,
+      isAdminAuthenticated: verifiedAdmin,
     });
     onClose();
   };
-
-  const demoAccounts = [
-    { name: 'Josh Birchall (Admin)', teamName: 'The Invincible Pundits', email: 'joshbirchall9@gmail.com', isAdmin: true },
-    { name: 'Liam Henderson', teamName: 'Slot Machine Reds', email: 'liam.h@example.com', isAdmin: false },
-    { name: 'Emma Watson-Smith', teamName: 'Arteta\'s Geometry', email: 'emma.ws@example.com', isAdmin: false },
-    { name: 'Marcus Cole', teamName: 'Maresca Ball Express', email: 'marcus.c@example.com', isAdmin: false },
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
@@ -64,35 +103,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
-        </div>
-
-        {/* Quick Switch Switcher */}
-        <div className="p-4 bg-slate-950 border-b border-slate-800">
-          <label className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider block mb-2">
-            Quick Switch Demo Profile:
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {demoAccounts.map((acc) => (
-              <button
-                key={acc.name}
-                type="button"
-                onClick={() => {
-                  setName(acc.name.split(' (')[0]);
-                  setTeamName(acc.teamName);
-                  setEmail(acc.email);
-                  setIsAdmin(acc.isAdmin);
-                }}
-                className={`p-2 rounded-lg text-left text-xs border transition-all ${
-                  email === acc.email
-                    ? 'bg-purple-950/60 border-purple-500 text-white'
-                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                }`}
-              >
-                <div className="font-bold truncate">{acc.name}</div>
-                <div className="text-[10px] text-purple-400 truncate">{acc.teamName}</div>
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Custom Edit Form */}
@@ -123,34 +133,94 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Email Address</label>
+            <label className="block text-xs font-medium text-slate-300 mb-1">Email Address *</label>
             <input
               id="input-auth-email"
               type="email"
+              required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (e.target.value.trim().toLowerCase() === defaultAdminEmail.toLowerCase()) {
+                  setIsAdmin(true);
+                }
+              }}
               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
             />
+            {email.trim().toLowerCase() === defaultAdminEmail.toLowerCase() && (
+              <span className="text-[10px] text-amber-400 font-semibold mt-1 block">
+                ⭐ Default Admin Account Recognized ({defaultAdminEmail})
+              </span>
+            )}
           </div>
 
-          {/* Admin Toggle */}
-          <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-amber-400" />
-              <div>
-                <div className="text-xs font-bold text-white">Administrator Role</div>
-                <div className="text-[10px] text-slate-400">Enables site locking, outcomes & category management</div>
+          {/* Password Section for Admin or Registered User Accounts */}
+          {(isAdmin || registeredMatch) && (
+            <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <div className="text-xs font-bold text-white">
+                      {registeredMatch ? 'Account Password Required' : 'Administrator Access'}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      {registeredMatch
+                        ? 'Enter your assigned password to sign into this registered predictor account'
+                        : 'Manage categories, lock season, delete leagues & users'}
+                    </div>
+                  </div>
+                </div>
+
+                {!registeredMatch && (
+                  <input
+                    id="toggle-admin-role"
+                    type="checkbox"
+                    checked={isAdmin}
+                    onChange={(e) => {
+                      setIsAdmin(e.target.checked);
+                      if (!e.target.checked) {
+                        setPasswordError(null);
+                      }
+                    }}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 bg-slate-900 border-slate-700 cursor-pointer"
+                  />
+                )}
+              </div>
+
+              {/* Password input */}
+              <div className="pt-2 border-t border-slate-800 space-y-1.5 animate-fade-in">
+                <label className="block text-[11px] font-semibold text-amber-300 flex items-center gap-1">
+                  <KeyRound className="w-3 h-3" />
+                  {isAdmin ? 'Admin Master Password / PIN *' : 'Assigned User Password *'}
+                </label>
+                <input
+                  id="input-user-password"
+                  type="password"
+                  required={isAdmin || Boolean(registeredMatch)}
+                  placeholder="Enter password..."
+                  value={userPasswordInput}
+                  onChange={(e) => {
+                    setUserPasswordInput(e.target.value);
+                    setPasswordError(null);
+                  }}
+                  className="w-full bg-slate-900 border border-amber-600/60 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
+                />
+                <p className="text-[10px] text-slate-400">
+                  {isAdmin
+                    ? 'Default admin password is "admin" (can be changed in the Admin Console).'
+                    : 'Enter the password set by the administrator for this user.'}
+                </p>
               </div>
             </div>
+          )}
 
-            <input
-              id="toggle-admin-role"
-              type="checkbox"
-              checked={isAdmin}
-              onChange={(e) => setIsAdmin(e.target.checked)}
-              className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 bg-slate-900 border-slate-700 cursor-pointer"
-            />
-          </div>
+          {passwordError && (
+            <div className="p-3 bg-rose-950/80 border border-rose-700/80 rounded-xl text-xs text-rose-200 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{passwordError}</span>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-2">
             <button
@@ -173,3 +243,4 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     </div>
   );
 };
+
