@@ -1,0 +1,6 @@
+{
+  "name": "Premier Predictor 2026/27",
+  "description": "Premier League and football prediction platform for the 2026/27 season featuring 1-20 table predictions, bespoke awards, scoring engine, automated leaderboards, admin console, and deployment architecture.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
