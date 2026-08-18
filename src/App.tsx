@@ -33,7 +33,6 @@ import {
 } from './types';
 import { storage } from './lib/storage';
 import { supabaseService } from './lib/supabaseService';
-import { isSupabaseConfigured } from './lib/supabaseClient';
 import { fetchPremierLeagueStandings } from './lib/footballApi';
 import { PREMIER_LEAGUE_TEAMS_2026_27 } from './data/teams2026';
 import { calculateSubmissionScore } from './lib/scoring';
@@ -221,11 +220,15 @@ export default function App() {
     setSubmissions(storage.getSubmissions());
 
     // 2. Direct async sync to Supabase with status confirmation
+    const isDbConfigured = supabaseService.isConfigured();
     let dbStatus = false;
-    if (supabaseService.isConfigured()) {
+    let dbError = '';
+
+    if (isDbConfigured) {
       const res = await supabaseService.savePrediction(updatedSub, currentUser);
       dbStatus = res.success;
       if (!res.success) {
+        dbError = res.error || 'Database write error';
         console.warn('Supabase sync warning:', res.error);
       }
     }
@@ -237,20 +240,24 @@ export default function App() {
         origin: { y: 0.6 },
         colors: ['#a855f7', '#6366f1', '#eab308', '#10b981'],
       });
-      setSubmitToast(
-        dbStatus
-          ? '🎉 Predictions locked in & saved to cloud database!'
-          : '🎉 Predictions locked in (saved locally)!'
-      );
+      if (dbStatus) {
+        setSubmitToast('🎉 Predictions locked in & saved to Supabase cloud database!');
+      } else if (isDbConfigured) {
+        setSubmitToast(`⚠️ Predictions locked in locally, but database error: ${dbError}`);
+      } else {
+        setSubmitToast('🎉 Predictions locked in locally! (Connect Supabase in Admin to sync to cloud database)');
+      }
     } else {
-      setSubmitToast(
-        dbStatus
-          ? '💾 Draft saved & synced to database!'
-          : '💾 Draft predictions saved locally!'
-      );
+      if (dbStatus) {
+        setSubmitToast('💾 Draft predictions saved & synced to Supabase database!');
+      } else if (isDbConfigured) {
+        setSubmitToast(`⚠️ Draft saved locally, but database error: ${dbError}`);
+      } else {
+        setSubmitToast('💾 Draft saved locally! (Connect Supabase in Admin Console to enable Cloud database sync)');
+      }
     }
 
-    setTimeout(() => setSubmitToast(null), 4000);
+    setTimeout(() => setSubmitToast(null), 5000);
   };
 
   const handleBespokeChange = (categoryId: string, value: string) => {
@@ -591,8 +598,8 @@ export default function App() {
             <span>Repository: <code className="text-purple-400">mlbirchall77-beep/premier-predictor</code></span>
             <span>•</span>
             <span className="flex items-center gap-1">
-              <Database className="w-3 h-3 text-emerald-400" />
-              {isSupabaseConfigured ? 'Connected to Supabase PostgreSQL' : 'Local Persistence Engine'}
+              <Database className={`w-3 h-3 ${supabaseService.isConfigured() ? 'text-emerald-400' : 'text-amber-400'}`} />
+              {supabaseService.isConfigured() ? 'Connected to Supabase PostgreSQL' : 'Local Persistence Engine'}
             </span>
           </div>
         </div>

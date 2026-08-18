@@ -45,7 +45,7 @@ import { storage } from '../lib/storage';
 import { PREMIER_LEAGUE_TEAMS_2026_27, getTeamById } from '../data/teams2026';
 import { supabaseService, DatabaseTestResult } from '../lib/supabaseService';
 import { 
-  isSupabaseConfigured, 
+  getIsSupabaseConfigured,
   getSupabaseConfig, 
   reconfigureSupabase, 
   resetSupabaseConfig,
@@ -244,6 +244,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     setIsTestingDb(true);
     const testRes = await supabaseService.testConnectivity();
     setDbTestResult(testRes);
+    if (testRes.connected) {
+      await onSyncSupabase();
+    }
     setIsTestingDb(false);
   };
 
@@ -479,7 +482,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 <span className="bg-amber-500/20 text-amber-300 text-xs px-2 py-0.5 rounded-full font-bold border border-amber-500/40">
                   Super Admin
                 </span>
-                {isSupabaseConfigured ? (
+                {getIsSupabaseConfigured() ? (
                   <span className="bg-emerald-500/20 text-emerald-300 text-xs px-2 py-0.5 rounded-full font-bold border border-emerald-500/40 flex items-center gap-1">
                     <Database className="w-3 h-3" /> Supabase Live
                   </span>
@@ -689,7 +692,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  {isSupabaseConfigured ? (
+                  {getIsSupabaseConfigured() ? (
                     <span className="text-[11px] bg-emerald-950/80 text-emerald-300 font-semibold px-2.5 py-1 rounded-lg border border-emerald-700/60 flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-emerald-400" /> Configured & Active
                     </span>
@@ -788,7 +791,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">Live Data Synchronization:</span>
-                  {isSupabaseConfigured ? (
+                  {getIsSupabaseConfigured() ? (
                     <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-800">
                       Cloud Sync Active
                     </span>
@@ -800,7 +803,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 </div>
 
                 <p className="text-[11px] text-slate-400">
-                  {isSupabaseConfigured 
+                  {getIsSupabaseConfigured() 
                     ? 'All user prediction drafts, locked submissions, and league creations are continuously pushed to your Supabase PostgreSQL database.'
                     : 'Configure your Supabase URL & Key above to enable cross-device cloud persistence.'}
                 </p>

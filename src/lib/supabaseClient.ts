@@ -46,7 +46,7 @@ function loadConfig(): SupabaseConfig {
 let currentConfig = loadConfig();
 
 export function getSupabaseConfig(): SupabaseConfig {
-  return currentConfig;
+  return loadConfig();
 }
 
 export function isValidSupabaseUrl(url: string): boolean {
@@ -58,7 +58,7 @@ export function isValidSupabaseUrl(url: string): boolean {
 export let supabase: SupabaseClient | null = null;
 export let isSupabaseConfigured = false;
 
-function initClient() {
+export function initClient(): SupabaseClient | null {
   currentConfig = loadConfig();
   if (currentConfig.url && currentConfig.anonKey && isValidSupabaseUrl(currentConfig.url)) {
     try {
@@ -69,19 +69,34 @@ function initClient() {
         },
       });
       isSupabaseConfigured = true;
+      return supabase;
     } catch (err) {
       console.warn('Could not initialize Supabase client:', err);
       supabase = null;
       isSupabaseConfigured = false;
+      return null;
     }
   } else {
     supabase = null;
     isSupabaseConfigured = false;
+    return null;
   }
 }
 
 // Initial client creation
 initClient();
+
+export function getSupabaseClient(): SupabaseClient | null {
+  if (!supabase) {
+    initClient();
+  }
+  return supabase;
+}
+
+export function getIsSupabaseConfigured(): boolean {
+  const client = getSupabaseClient();
+  return Boolean(client && isSupabaseConfigured);
+}
 
 export function reconfigureSupabase(url: string, anonKey: string): { success: boolean; error?: string } {
   const cleanUrl = url.trim().replace(/\/+$/, '');
@@ -115,8 +130,9 @@ export function resetSupabaseConfig() {
 
 export function getSupabaseStatus() {
   const cfg = getSupabaseConfig();
+  const configured = getIsSupabaseConfigured();
   return {
-    isConfigured: isSupabaseConfigured,
+    isConfigured: configured,
     url: cfg.url ? cfg.url.replace(/^(https:\/\/[^.]+).*/, '$1.supabase.co') : 'Not set',
     rawUrl: cfg.url,
     anonKey: cfg.anonKey,

@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { getSupabaseClient, getIsSupabaseConfigured } from './supabaseClient';
 import { 
   ActualOutcomes, 
   CurrentUser, 
@@ -26,19 +26,24 @@ export interface DatabaseTestResult {
 }
 
 export const supabaseService = {
+  getClient() {
+    return getSupabaseClient();
+  },
+
   isConfigured(): boolean {
-    return isSupabaseConfigured && supabase !== null;
+    return getIsSupabaseConfigured();
   },
 
   /**
    * Test connectivity and table existence in Supabase
    */
   async testConnectivity(): Promise<DatabaseTestResult> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) {
       return {
         isConfigured: false,
         connected: false,
-        message: 'Supabase environment variables (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY) are not configured or still have placeholder values.',
+        message: 'Supabase credentials are not yet configured or could not initialize.',
         tableStats: {
           profiles: 0,
           predictions: 0,
@@ -144,6 +149,7 @@ export const supabaseService = {
     leagues: League[];
     metrics: SiteMetrics | null;
   } | null> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return null;
 
     try {
@@ -304,6 +310,7 @@ export const supabaseService = {
    * Save / Upsert a User Prediction to Supabase
    */
   async savePrediction(sub: UserPredictionSubmission, user: CurrentUser): Promise<{ success: boolean; error?: string }> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) {
       return { success: false, error: 'Supabase is not configured' };
     }
@@ -398,6 +405,7 @@ export const supabaseService = {
    * Save / Upsert Actual Outcomes to Supabase
    */
   async saveActualOutcomes(outcomes: ActualOutcomes): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
 
     try {
@@ -405,8 +413,8 @@ export const supabaseService = {
         id: 'season_2026_27',
         table_standings: outcomes.tableStandings,
         bespoke_results: outcomes.bespokeResults,
-        updated_at: new Date().toISOString(),
-      });
+        updated_at: outcomes.updatedAt,
+      }, { onConflict: 'id' });
       return true;
     } catch (err) {
       console.warn('Supabase saveActualOutcomes error:', err);
@@ -418,6 +426,7 @@ export const supabaseService = {
    * Save / Upsert Categories to Supabase
    */
   async saveCategories(categories: PredictionCategory[]): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
 
     try {
@@ -443,6 +452,7 @@ export const supabaseService = {
    * Create a new Mini-League in Supabase
    */
   async createLeague(league: League, creatorEmail: string): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
 
     try {
@@ -479,16 +489,17 @@ export const supabaseService = {
   },
 
   /**
-   * Join a League in Supabase
+   * Join a user to a league in Supabase
    */
   async joinLeague(leagueId: string, userEmail: string): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
 
     try {
       const { data: prof } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', userEmail)
+        .eq('email', userEmail.trim().toLowerCase())
         .maybeSingle();
 
       if (prof?.id) {
@@ -506,12 +517,13 @@ export const supabaseService = {
   },
 
   /**
-   * Delete prediction submission by ID
+   * Delete a prediction submission by ID
    */
-  async deletePrediction(predictionId: string): Promise<boolean> {
+  async deletePrediction(submissionId: string): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
     try {
-      await supabase.from('predictions').delete().eq('id', predictionId);
+      await supabase.from('predictions').delete().eq('id', submissionId);
       return true;
     } catch (err) {
       console.warn('Supabase deletePrediction error:', err);
@@ -523,6 +535,7 @@ export const supabaseService = {
    * Delete a mini-league by ID
    */
   async deleteLeague(leagueId: string): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
     try {
       await supabase.from('league_members').delete().eq('league_id', leagueId);
@@ -538,6 +551,7 @@ export const supabaseService = {
    * Seed / Insert a custom league directly into Supabase
    */
   async seedCustomLeague(name: string, code: string, description: string, isPublic: boolean, creatorEmail: string): Promise<{ success: boolean; error?: string; league?: any }> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) {
       return { success: false, error: 'Supabase is not configured. Please enter your Supabase URL & Key.' };
     }
@@ -621,6 +635,7 @@ export const supabaseService = {
    * Seed default bespoke categories into Supabase
    */
   async seedDefaultCategories(): Promise<{ success: boolean; error?: string }> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) {
       return { success: false, error: 'Supabase is not configured.' };
     }
@@ -648,6 +663,7 @@ export const supabaseService = {
    * Delete user profile, predictions and league memberships
    */
   async deleteUser(userId: string): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
     try {
       await supabase.from('predictions').delete().eq('user_id', userId);
@@ -664,6 +680,7 @@ export const supabaseService = {
    * Purge all demo prediction submissions and demo mini-leagues from Supabase
    */
   async purgeDemoDataFromSupabase(keepAdminEmail: string): Promise<boolean> {
+    const supabase = this.getClient();
     if (!this.isConfigured() || !supabase) return false;
 
     try {
