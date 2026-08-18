@@ -413,9 +413,10 @@ export const storage = {
 
   saveLiveStandings(standings: LivePlStanding[]): void {
     safeSet(KEYS.LIVE_STANDINGS, standings);
-    // Also sync table standings in actual outcomes
+    // Only populate tableStandings for points scoring if actual matches have been played
+    const anyMatchesPlayed = Array.isArray(standings) && standings.some(s => (s.played || 0) > 0);
     const actuals = this.getActualOutcomes();
-    actuals.tableStandings = standings.map(s => s.teamId);
+    actuals.tableStandings = anyMatchesPlayed ? standings.map(s => s.teamId) : [];
     this.saveActualOutcomes(actuals);
   },
 
@@ -460,6 +461,9 @@ export const storage = {
 
     // Reset live standings to pre-season zero table
     this.saveLiveStandings(getZeroStandings());
+
+    // Reset actual outcomes to clean pre-season 0 state (all results pending)
+    this.saveActualOutcomes(INITIAL_ACTUAL_OUTCOMES);
 
     // Reset metrics
     const cleanMetrics: SiteMetrics = {

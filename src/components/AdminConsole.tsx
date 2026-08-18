@@ -967,6 +967,55 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 </div>
               </form>
             </div>
+
+            {/* Quick SQL / RLS Permission Fix helper */}
+            <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-800/40 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span className="text-xs font-bold text-slate-200">Supabase Table Permissions (Row-Level Security)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const rlsSql = `-- Grant full write/read access for all tables in Supabase SQL Editor
+ALTER TABLE public.prediction_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leagues ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.league_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.predictions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.actual_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.site_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Categories access policy" ON public.prediction_categories;
+DROP POLICY IF EXISTS "Leagues access policy" ON public.leagues;
+DROP POLICY IF EXISTS "League members access policy" ON public.league_members;
+DROP POLICY IF EXISTS "Predictions access policy" ON public.predictions;
+DROP POLICY IF EXISTS "Actual outcomes access policy" ON public.actual_outcomes;
+DROP POLICY IF EXISTS "Site metrics access policy" ON public.site_metrics;
+DROP POLICY IF EXISTS "Profiles access policy" ON public.profiles;
+
+CREATE POLICY "Categories access policy" ON public.prediction_categories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Leagues access policy" ON public.leagues FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "League members access policy" ON public.league_members FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Predictions access policy" ON public.predictions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Actual outcomes access policy" ON public.actual_outcomes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Site metrics access policy" ON public.site_metrics FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Profiles access policy" ON public.profiles FOR ALL USING (true) WITH CHECK (true);`;
+                    navigator.clipboard.writeText(rlsSql);
+                    setCopiedQuickSql(true);
+                    setTimeout(() => setCopiedQuickSql(false), 3000);
+                  }}
+                  className="bg-indigo-900/80 hover:bg-indigo-800 text-indigo-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-indigo-700/60 flex items-center gap-1.5 transition-all"
+                >
+                  {copiedQuickSql ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Key className="w-3.5 h-3.5 text-indigo-400" />}
+                  {copiedQuickSql ? 'Copied RLS SQL Fix!' : 'Copy RLS Permissions SQL'}
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                If seeding gives an error like <em>&quot;new row violates row-level security policy&quot;</em>, click <strong>Copy RLS Permissions SQL</strong> and run it in your <strong>Supabase Dashboard &rarr; SQL Editor</strong> to enable write permissions.
+              </p>
+            </div>
           </div>
         </div>
       )}

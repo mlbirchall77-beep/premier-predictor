@@ -515,26 +515,53 @@ export const supabaseService = {
         prof = newProf;
       }
 
-      const { data: newLeague, error } = await supabase.from('leagues').insert({
-        name: name.trim(),
-        code: code.trim().toUpperCase(),
-        description: description.trim(),
-        is_public: isPublic,
-        created_by: prof?.id || null,
-        created_at: new Date().toISOString(),
-      }).select().single();
+      // Check if league with this code already exists
+      const cleanCode = code.trim().toUpperCase();
+      const { data: existingLeague } = await supabase
+        .from('leagues')
+        .select('id, name, code')
+        .eq('code', cleanCode)
+        .maybeSingle();
 
-      if (error) throw error;
+      let leagueResult: any = null;
 
-      if (newLeague && prof?.id) {
+      if (existingLeague) {
+        const { data: updated, error: updateErr } = await supabase
+          .from('leagues')
+          .update({
+            name: name.trim(),
+            description: description.trim(),
+            is_public: isPublic,
+          })
+          .eq('id', existingLeague.id)
+          .select()
+          .single();
+
+        if (updateErr) throw updateErr;
+        leagueResult = updated || existingLeague;
+      } else {
+        const { data: newLeague, error } = await supabase.from('leagues').insert({
+          name: name.trim(),
+          code: cleanCode,
+          description: description.trim(),
+          is_public: isPublic,
+          created_by: prof?.id || null,
+          created_at: new Date().toISOString(),
+        }).select().single();
+
+        if (error) throw error;
+        leagueResult = newLeague;
+      }
+
+      if (leagueResult && prof?.id) {
         await supabase.from('league_members').upsert({
-          league_id: newLeague.id,
+          league_id: leagueResult.id,
           user_id: prof.id,
           joined_at: new Date().toISOString(),
         }, { onConflict: 'league_id,user_id' });
       }
 
-      return { success: true, league: newLeague };
+      return { success: true, league: leagueResult };
     } catch (err: any) {
       console.warn('Supabase seedCustomLeague error:', err);
       return { success: false, error: err?.message || String(err) };

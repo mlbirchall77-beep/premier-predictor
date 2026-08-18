@@ -38,43 +38,22 @@ export const INITIAL_LEAGUES: League[] = [
 ];
 
 export const INITIAL_ACTUAL_OUTCOMES: ActualOutcomes = {
-  // Current live Premier League 2026/27 standings
-  tableStandings: [
-    'mancity',
-    'arsenal',
-    'liverpool',
-    'chelsea',
-    'astonvilla',
-    'newcastle',
-    'tottenham',
-    'brighton',
-    'nottingham',
-    'fulham',
-    'bournemouth',
-    'manutd',
-    'brentford',
-    'crystalpalace',
-    'everton',
-    'leeds',
-    'sunderland',
-    'coventry',
-    'ipswich',
-    'hullcity',
-  ],
+  // Pre-season Premier League 2026/27 standings (0 matches played)
+  tableStandings: [],
   bespokeResults: {
-    first_manager_sacked: 'Pierre Sage (Crystal Palace)',
-    top_goal_scorer: 'Erling Haaland (Man City)',
-    top_assists: 'Cole Palmer (Chelsea)',
-    league_cup_winners: 'Chelsea',
-    fa_cup_winners: '', // Pending
-    uefa_cup_winners: '', // Pending
-    champions_league_winners: '', // Pending
-    pfa_player_of_season: '', // Pending
-    golden_gloves: 'David Raya (Arsenal)',
-    balon_dor: 'Vinícius Júnior (Real Madrid)',
-    pfa_young_player: 'Kobbie Mainoo (Man United)',
+    first_manager_sacked: '',
+    top_goal_scorer: '',
+    top_assists: '',
+    league_cup_winners: '',
+    fa_cup_winners: '',
+    uefa_cup_winners: '',
+    champions_league_winners: '',
+    pfa_player_of_season: '',
+    golden_gloves: '',
+    balon_dor: '',
+    pfa_young_player: '',
   },
-  updatedAt: '2026-08-18T06:00:00Z',
+  updatedAt: '2026-08-18T00:00:00Z',
 };
 
 export const INITIAL_SUBMISSIONS: UserPredictionSubmission[] = [

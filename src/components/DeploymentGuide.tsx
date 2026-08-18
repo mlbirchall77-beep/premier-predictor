@@ -121,22 +121,23 @@ ALTER TABLE public.predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.actual_outcomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_metrics ENABLE ROW LEVEL SECURITY;
 
--- Profiles: Public Read, Self Update
-CREATE POLICY "Profiles readable by everyone" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+-- Drop existing policies if re-running to avoid duplicate policy errors
+DROP POLICY IF EXISTS "Profiles access policy" ON public.profiles;
+DROP POLICY IF EXISTS "Leagues access policy" ON public.leagues;
+DROP POLICY IF EXISTS "League members access policy" ON public.league_members;
+DROP POLICY IF EXISTS "Categories access policy" ON public.prediction_categories;
+DROP POLICY IF EXISTS "Predictions access policy" ON public.predictions;
+DROP POLICY IF EXISTS "Actual outcomes access policy" ON public.actual_outcomes;
+DROP POLICY IF EXISTS "Site metrics access policy" ON public.site_metrics;
 
--- Predictions: Public Read (for Leaderboard), Self Insert/Update unless locked
-CREATE POLICY "Predictions readable by all" ON public.predictions FOR SELECT USING (true);
-CREATE POLICY "Users can insert own prediction" ON public.predictions FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can update own prediction when unlocked" ON public.predictions FOR UPDATE USING (
-    auth.uid() = user_id AND (is_locked = FALSE OR admin_override = TRUE)
-);
-
--- Categories & Actuals: Public Read, Admin Write
-CREATE POLICY "Categories readable by all" ON public.prediction_categories FOR SELECT USING (true);
-CREATE POLICY "Actuals readable by all" ON public.actual_outcomes FOR SELECT USING (true);
-CREATE POLICY "Leagues readable by all" ON public.leagues FOR SELECT USING (true);
-CREATE POLICY "Members readable by all" ON public.league_members FOR SELECT USING (true);
+-- Permissive policies for full-featured anonymous & authenticated client access
+CREATE POLICY "Profiles access policy" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Leagues access policy" ON public.leagues FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "League members access policy" ON public.league_members FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Categories access policy" ON public.prediction_categories FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Predictions access policy" ON public.predictions FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Actual outcomes access policy" ON public.actual_outcomes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Site metrics access policy" ON public.site_metrics FOR ALL USING (true) WITH CHECK (true);
 
 -- Insert Default Global League
 INSERT INTO public.leagues (id, name, code, is_public, description)
