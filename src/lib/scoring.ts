@@ -68,12 +68,18 @@ export function calculateSubmissionScore(
   categories.forEach(cat => {
     const predictedVal = submission.bespokePredictions?.[cat.id] || 'Not Selected';
     const actualVal = actualOutcomes.bespokeResults?.[cat.id];
-    const isResolved = Boolean(actualVal && actualVal.trim() !== '');
+    const isResolved = Boolean(
+      actualVal &&
+      typeof actualVal === 'string' &&
+      actualVal.trim() !== '' &&
+      !actualVal.toLowerCase().includes('pending') &&
+      !actualVal.toLowerCase().includes('tbd')
+    );
 
     let pts = 0;
     let reason: 'exact' | 'one_off' | 'miss' = 'miss';
 
-    if (isResolved && actualVal) {
+    if (isResolved && actualVal && predictedVal !== 'Not Selected') {
       const isMatch = normalizeAnswer(predictedVal) === normalizeAnswer(actualVal);
       if (isMatch) {
         pts = cat.pointsValue || 3;

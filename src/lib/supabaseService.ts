@@ -244,13 +244,22 @@ export const supabaseService = {
 
       let actualOutcomes: ActualOutcomes | null = null;
       if (actData) {
+        const rawTable = Array.isArray(actData.table_standings)
+          ? actData.table_standings
+          : (typeof actData.table_standings === 'string' ? JSON.parse(actData.table_standings) : []);
+        const rawBespoke = typeof actData.bespoke_results === 'object' && actData.bespoke_results !== null
+          ? actData.bespoke_results
+          : (typeof actData.bespoke_results === 'string' ? JSON.parse(actData.bespoke_results) : {});
+
+        const isLegacy = rawBespoke && (
+          rawBespoke.first_manager_sacked === 'Pierre Sage (Crystal Palace)' ||
+          rawBespoke.top_goal_scorer === 'Erling Haaland (Man City)' ||
+          rawBespoke.league_cup_winners === 'Chelsea'
+        );
+
         actualOutcomes = {
-          tableStandings: Array.isArray(actData.table_standings)
-            ? actData.table_standings
-            : (typeof actData.table_standings === 'string' ? JSON.parse(actData.table_standings) : []),
-          bespokeResults: typeof actData.bespoke_results === 'object' && actData.bespoke_results !== null
-            ? actData.bespoke_results
-            : (typeof actData.bespoke_results === 'string' ? JSON.parse(actData.bespoke_results) : {}),
+          tableStandings: isLegacy ? [] : rawTable,
+          bespokeResults: isLegacy ? {} : rawBespoke,
           updatedAt: actData.updated_at || new Date().toISOString(),
         };
       }

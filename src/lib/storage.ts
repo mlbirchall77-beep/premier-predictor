@@ -287,7 +287,21 @@ export const storage = {
 
   // Actual Outcomes
   getActualOutcomes(): ActualOutcomes {
-    return safeGet<ActualOutcomes>(KEYS.ACTUALS, INITIAL_ACTUAL_OUTCOMES);
+    const raw = safeGet<ActualOutcomes>(KEYS.ACTUALS, INITIAL_ACTUAL_OUTCOMES);
+    
+    // Auto-migrate & cleanse legacy mock results (e.g. Pierre Sage, mock mid-season standings)
+    const isLegacyMock = raw && raw.bespokeResults && (
+      raw.bespokeResults.first_manager_sacked === 'Pierre Sage (Crystal Palace)' ||
+      raw.bespokeResults.top_goal_scorer === 'Erling Haaland (Man City)' ||
+      raw.bespokeResults.league_cup_winners === 'Chelsea'
+    );
+
+    if (isLegacyMock || !raw || !Array.isArray(raw.tableStandings)) {
+      safeSet(KEYS.ACTUALS, INITIAL_ACTUAL_OUTCOMES);
+      return INITIAL_ACTUAL_OUTCOMES;
+    }
+
+    return raw;
   },
 
   saveActualOutcomes(outcomes: ActualOutcomes): void {
