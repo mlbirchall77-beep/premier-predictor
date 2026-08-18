@@ -32,7 +32,6 @@ export const BespokePredictor: React.FC<BespokePredictorProps> = ({
   isLocked,
   canOverride,
 }) => {
-  const [customInputToggles, setCustomInputToggles] = useState<Record<string, boolean>>({});
   const [searchTerm, setSearchTerm] = useState('');
 
   const disabled = isLocked && !canOverride;
@@ -111,7 +110,6 @@ export const BespokePredictor: React.FC<BespokePredictorProps> = ({
         {filteredCategories.map((cat) => {
           const selectedValue = predictions[cat.id] || '';
           const isAnswered = Boolean(selectedValue && selectedValue.trim() !== '');
-          const isCustomMode = customInputToggles[cat.id] || (isAnswered && cat.options && !cat.options.includes(selectedValue));
 
           return (
             <div
@@ -147,83 +145,54 @@ export const BespokePredictor: React.FC<BespokePredictorProps> = ({
                 </span>
               </div>
 
-              {/* Selection Controls */}
+              {/* Selection Controls - 100% Manual Entry */}
               <div className="mt-3 space-y-2">
-                {!isCustomMode && cat.options && cat.options.length > 0 ? (
-                  <div className="space-y-2">
-                    <select
-                      id={`select-bespoke-${cat.id}`}
-                      value={selectedValue}
+                <div className="space-y-1.5">
+                  <div className="relative">
+                    <input
+                      id={`input-bespoke-${cat.id}`}
+                      type="text"
                       disabled={disabled}
-                      onChange={(e) => {
-                        if (e.target.value === '__OTHER_CUSTOM__') {
-                          setCustomInputToggles(prev => ({ ...prev, [cat.id]: true }));
-                        } else {
-                          onChange(cat.id, e.target.value);
-                        }
-                      }}
-                      aria-label={`Select ${cat.title}`}
-                      className="w-full bg-slate-900 border border-slate-700 hover:border-purple-500 disabled:opacity-60 text-white text-xs rounded-xl px-3 py-2 focus:outline-none cursor-pointer"
-                    >
-                      <option value="">-- Choose your prediction --</option>
-                      {cat.options.map((opt) => (
-                        <option key={opt} value={opt} className="bg-slate-900 text-white">
-                          {opt}
-                        </option>
-                      ))}
-                      <option value="__OTHER_CUSTOM__">✍️ Enter Custom Name / Other...</option>
-                    </select>
-
-                    {/* Quick Choice Suggestion Chips (top 3) */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] text-slate-500 font-medium">Quick Pick:</span>
-                      {cat.options.slice(0, 3).map((opt) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          disabled={disabled}
-                          onClick={() => onChange(cat.id, opt)}
-                          className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${
-                            selectedValue === opt
-                              ? 'bg-purple-600 text-white border-purple-500 font-bold'
-                              : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-purple-500/50'
-                          }`}
-                        >
-                          {opt.split(' (')[0]}
-                        </button>
-                      ))}
+                      placeholder={`Enter ${cat.title.toLowerCase()} manually...`}
+                      value={selectedValue}
+                      onChange={(e) => onChange(cat.id, e.target.value)}
+                      className={`w-full bg-slate-900 border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-all disabled:opacity-60 ${
+                        isAnswered 
+                          ? 'border-purple-500/80 ring-1 ring-purple-500/30' 
+                          : 'border-slate-700 focus:border-purple-500'
+                      }`}
+                    />
+                    {selectedValue && !disabled && (
                       <button
                         type="button"
-                        onClick={() => setCustomInputToggles(prev => ({ ...prev, [cat.id]: true }))}
-                        className="text-[10px] text-purple-400 hover:text-purple-300 underline ml-auto"
+                        onClick={() => onChange(cat.id, '')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-400 text-[11px] p-1 rounded hover:bg-slate-800 transition-colors"
+                        title="Clear prediction"
                       >
-                        Custom text
+                        ✕
                       </button>
-                    </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <input
-                        id={`input-custom-bespoke-${cat.id}`}
-                        type="text"
-                        disabled={disabled}
-                        placeholder={`Type predicted ${cat.title.toLowerCase()}...`}
-                        value={selectedValue}
-                        onChange={(e) => onChange(cat.id, e.target.value)}
-                        className="w-full bg-slate-900 border border-purple-500/70 disabled:opacity-60 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                      />
-                      {cat.options && cat.options.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setCustomInputToggles(prev => ({ ...prev, [cat.id]: false }))}
-                          className="text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-2 rounded-xl shrink-0"
-                          title="Switch back to dropdown list"
-                        >
-                          List
-                        </button>
-                      )}
-                    </div>
+                </div>
+
+                {/* Optional Suggestion Quick-Chips */}
+                {cat.options && cat.options.length > 0 && !disabled && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span className="text-[10px] text-slate-500 font-medium">Suggestions:</span>
+                    {cat.options.slice(0, 4).map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => onChange(cat.id, opt)}
+                        className={`text-[10px] px-2 py-0.5 rounded-md border transition-all ${
+                          selectedValue.toLowerCase() === opt.toLowerCase()
+                            ? 'bg-purple-600 text-white border-purple-500 font-bold'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                        }`}
+                      >
+                        {opt.split(' (')[0]}
+                      </button>
+                    ))}
                   </div>
                 )}
 
@@ -232,16 +201,12 @@ export const BespokePredictor: React.FC<BespokePredictorProps> = ({
                   <div className="flex items-center justify-between text-[11px] text-purple-300/90 pt-1">
                     <span className="flex items-center gap-1 font-medium">
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      Locked Pick: <strong className="text-white ml-0.5">{selectedValue}</strong>
+                      Manual Pick: <strong className="text-white ml-0.5">{selectedValue}</strong>
                     </span>
                     {!disabled && (
-                      <button
-                        type="button"
-                        onClick={() => onChange(cat.id, '')}
-                        className="text-slate-500 hover:text-rose-400 text-[10px]"
-                      >
-                        Clear
-                      </button>
+                      <span className="text-slate-500 text-[10px]">
+                        Editable until deadline
+                      </span>
                     )}
                   </div>
                 )}

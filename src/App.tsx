@@ -84,16 +84,19 @@ export default function App() {
   const [isSyncingApi, setIsSyncingApi] = useState(false);
 
   // Initial Sync from Supabase if configured
+  const [isSupabaseLoading, setIsSupabaseLoading] = useState(false);
+
   const syncFromSupabase = useCallback(async () => {
     if (!supabaseService.isConfigured()) return;
+    setIsSupabaseLoading(true);
     try {
       const remoteData = await supabaseService.fetchLiveDatabase();
       if (remoteData) {
-        if (remoteData.submissions) {
+        if (Array.isArray(remoteData.submissions)) {
           storage.saveSubmissions(remoteData.submissions);
           setSubmissions(remoteData.submissions);
         }
-        if (remoteData.leagues && remoteData.leagues.length > 0) {
+        if (Array.isArray(remoteData.leagues)) {
           storage.saveLeagues(remoteData.leagues);
           setLeagues(remoteData.leagues);
         }
@@ -108,6 +111,8 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Initial Supabase fetch error:', err);
+    } finally {
+      setIsSupabaseLoading(false);
     }
   }, []);
 

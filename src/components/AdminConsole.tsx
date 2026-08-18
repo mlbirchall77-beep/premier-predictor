@@ -44,7 +44,13 @@ import { storage } from '../lib/storage';
 
 import { PREMIER_LEAGUE_TEAMS_2026_27, getTeamById } from '../data/teams2026';
 import { supabaseService, DatabaseTestResult } from '../lib/supabaseService';
-import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { 
+  isSupabaseConfigured, 
+  getSupabaseConfig, 
+  reconfigureSupabase, 
+  resetSupabaseConfig,
+  getSupabaseStatus 
+} from '../lib/supabaseClient';
 
 interface AdminConsoleProps {
   adminSettings: AdminSettings;
@@ -203,11 +209,114 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   const [editingActuals, setEditingActuals] = useState<ActualOutcomes>({ ...actualOutcomes });
   const [saveOutcomesNotice, setSaveOutcomesNotice] = useState(false);
 
-  // Database Diagnostic
+  // Database Diagnostic & Dynamic Supabase Config
   const [dbTestResult, setDbTestResult] = useState<DatabaseTestResult | null>(null);
   const [isTestingDb, setIsTestingDb] = useState(false);
   const [isClearingDemo, setIsClearingDemo] = useState(false);
   const [actionSuccessNotice, setActionSuccessNotice] = useState<string | null>(null);
+
+  // Supabase dynamic config form state
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState(() => getSupabaseConfig().url);
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState(() => getSupabaseConfig().anonKey);
+  const [showSupabaseKey, setShowSupabaseKey] = useState(false);
+  const [supabaseConfigNotice, setSupabaseConfigNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Direct Supabase Seeding / Population form state
+  const [supabaseLeagueName, setSupabaseLeagueName] = useState('Premier League Predictions 2026/27');
+  const [supabaseLeagueCode, setSupabaseLeagueCode] = useState('PL2627');
+  const [supabaseLeagueDesc, setSupabaseLeagueDesc] = useState('Official Premier League 2026/27 predictions competition.');
+  const [supabaseLeagueIsPublic, setSupabaseLeagueIsPublic] = useState(true);
+  const [isSeedingLeague, setIsSeedingLeague] = useState(false);
+  const [isSeedingCats, setIsSeedingCats] = useState(false);
+  const [seedingNotice, setSeedingNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [copiedQuickSql, setCopiedQuickSql] = useState(false);
+
+  const handleSaveSupabaseCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSupabaseConfigNotice(null);
+    const res = reconfigureSupabase(supabaseUrlInput, supabaseKeyInput);
+    if (!res.success) {
+      setSupabaseConfigNotice({ type: 'error', text: res.error || 'Failed to update configuration.' });
+      return;
+    }
+
+    setSupabaseConfigNotice({ type: 'success', text: 'Supabase credentials saved! Testing database connectivity now...' });
+    setIsTestingDb(true);
+    const testRes = await supabaseService.testConnectivity();
+    setDbTestResult(testRes);
+    setIsTestingDb(false);
+  };
+
+  const handleSeedLeagueToSupabase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSeedingNotice(null);
+    if (!supabaseLeagueName.trim() || !supabaseLeagueCode.trim()) {
+      setSeedingNotice({ type: 'error', text: 'League name and code are required.' });
+      return;
+    }
+
+    setIsSeedingLeague(true);
+    try {
+      const res = await supabaseService.seedCustomLeague(
+        supabaseLeagueName,
+        supabaseLeagueCode,
+        supabaseLeagueDesc,
+        supabaseLeagueIsPublic,
+        currentUser.email
+      );
+
+      if (res.success) {
+        setSeedingNotice({ type: 'success', text: `✅ League "${supabaseLeagueName}" (Code: ${supabaseLeagueCode.toUpperCase()}) saved directly to Supabase!` });
+        await onSyncSupabase();
+      } else {
+        setSeedingNotice({ type: 'error', text: `Failed to insert league: ${res.error}` });
+      }
+    } catch (err: any) {
+      setSeedingNotice({ type: 'error', text: `Error: ${err?.message || err}` });
+    } finally {
+      setIsSeedingLeague(false);
+    }
+  };
+
+  const handleSeedCategoriesToSupabase = async () => {
+    setSeedingNotice(null);
+    setIsSeedingCats(true);
+    try {
+      const res = await supabaseService.seedDefaultCategories();
+      if (res.success) {
+        setSeedingNotice({ type: 'success', text: '✅ All 10 default bespoke prediction categories saved to Supabase database!' });
+        await onSyncSupabase();
+      } else {
+        setSeedingNotice({ type: 'error', text: `Failed to seed categories: ${res.error}` });
+      }
+    } catch (err: any) {
+      setSeedingNotice({ type: 'error', text: `Error: ${err?.message || err}` });
+    } finally {
+      setIsSeedingCats(false);
+    }
+  };
+
+  const handleClearLocalCacheAndSync = async () => {
+    try {
+      // Clear localStorage prediction caches
+      localStorage.removeItem('premier_predictor_submissions_2026');
+      localStorage.removeItem('premier_predictor_leagues_2026');
+      localStorage.setItem('premier_predictor_demo_data_cleared_2026', 'true');
+      setSeedingNotice({ type: 'success', text: '🧹 Local cache cleared! Pulling pure live data from Supabase...' });
+      await onSyncSupabase();
+    } catch (e: any) {
+      setSeedingNotice({ type: 'error', text: `Cache clear error: ${e?.message || e}` });
+    }
+  };
+
+  const handleResetSupabaseCredentials = () => {
+    resetSupabaseConfig();
+    const cfg = getSupabaseConfig();
+    setSupabaseUrlInput(cfg.url);
+    setSupabaseKeyInput(cfg.anonKey);
+    setSupabaseConfigNotice({ type: 'success', text: 'Reset to environment default credentials.' });
+    setTimeout(() => setSupabaseConfigNotice(null), 3000);
+  };
 
   const handleAdminCreateLeague = (e: React.FormEvent) => {
     e.preventDefault();
@@ -566,14 +675,122 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               </div>
             </div>
 
+            {/* Supabase Dynamic Configuration Form */}
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/30 border border-indigo-900/40 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Database className="w-4 h-4 text-indigo-400" />
+                    Supabase PostgreSQL Connection Manager
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Connect or re-configure your Supabase credentials on the fly without editing code or restarting servers.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {isSupabaseConfigured ? (
+                    <span className="text-[11px] bg-emerald-950/80 text-emerald-300 font-semibold px-2.5 py-1 rounded-lg border border-emerald-700/60 flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-400" /> Configured & Active
+                    </span>
+                  ) : (
+                    <span className="text-[11px] bg-amber-950/80 text-amber-300 font-semibold px-2.5 py-1 rounded-lg border border-amber-700/60 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Offline / Fallback
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {supabaseConfigNotice && (
+                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                  supabaseConfigNotice.type === 'success'
+                    ? 'bg-emerald-950/80 border-emerald-700 text-emerald-200'
+                    : 'bg-rose-950/80 border-rose-700 text-rose-200'
+                }`}>
+                  {supabaseConfigNotice.type === 'success' ? (
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{supabaseConfigNotice.text}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveSupabaseCredentials} className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                      <span>Supabase Project URL</span>
+                      <span className="text-[10px] text-indigo-400 font-normal">Dashboard &rarr; Project Settings &rarr; API</span>
+                    </label>
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://xyzabcdefg.supabase.co"
+                      value={supabaseUrlInput}
+                      onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                      <span>Supabase Anon / Public API Key</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSupabaseKey(!showSupabaseKey)}
+                        className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1"
+                      >
+                        {showSupabaseKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                        {showSupabaseKey ? 'Hide Key' : 'Reveal Key'}
+                      </button>
+                    </label>
+                    <input
+                      type={showSupabaseKey ? 'text' : 'password'}
+                      required
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      value={supabaseKeyInput}
+                      onChange={(e) => setSupabaseKeyInput(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="submit"
+                      disabled={isTestingDb}
+                      className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-lg shadow-indigo-600/30 flex items-center gap-2 transition-all cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      Save & Test Supabase URL
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResetSupabaseCredentials}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium px-3 py-2 rounded-xl border border-slate-700 transition-all cursor-pointer"
+                    >
+                      Reset to Default (.env)
+                    </button>
+                  </div>
+
+                  <span className="text-[10px] text-slate-500">
+                    Active source: <strong className="text-slate-300">{getSupabaseStatus().source === 'custom' ? 'Custom In-App Storage' : getSupabaseStatus().source === 'env' ? 'Environment Variable (.env)' : 'Not Configured'}</strong>
+                  </span>
+                </div>
+              </form>
+            </div>
+
             {/* Supabase Status Diagnostic Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-white">Supabase Connection State:</span>
+                  <span className="text-xs font-bold text-white">Live Data Synchronization:</span>
                   {isSupabaseConfigured ? (
                     <span className="text-[10px] bg-emerald-950 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-800">
-                      VITE_SUPABASE_URL Configured
+                      Cloud Sync Active
                     </span>
                   ) : (
                     <span className="text-[10px] bg-amber-950 text-amber-300 font-bold px-2 py-0.5 rounded border border-amber-800">
@@ -585,7 +802,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 <p className="text-[11px] text-slate-400">
                   {isSupabaseConfigured 
                     ? 'All user prediction drafts, locked submissions, and league creations are continuously pushed to your Supabase PostgreSQL database.'
-                    : 'Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env or Vercel settings to enable cross-device cloud persistence.'}
+                    : 'Configure your Supabase URL & Key above to enable cross-device cloud persistence.'}
                 </p>
 
                 <div className="flex items-center gap-2 pt-1">
@@ -656,6 +873,100 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 )}
               </div>
             )}
+
+            {/* Direct Supabase League & Categories Populator */}
+            <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    Populate Supabase with Exact League & Categories
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Write your verified league details directly to your Supabase PostgreSQL database table.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleClearLocalCacheAndSync}
+                    className="bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition-colors"
+                    title="Clear browser local storage and pull pure Supabase data"
+                  >
+                    🧹 Purge Local Cache & Re-Sync
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSeedCategoriesToSupabase}
+                    disabled={isSeedingCats}
+                    className="bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-700/60 text-xs font-bold px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5"
+                  >
+                    {isSeedingCats ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                    Seed Default Categories
+                  </button>
+                </div>
+              </div>
+
+              {seedingNotice && (
+                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
+                  seedingNotice.type === 'success'
+                    ? 'bg-emerald-950/80 border-emerald-700 text-emerald-200'
+                    : 'bg-rose-950/80 border-rose-700 text-rose-200'
+                }`}>
+                  {seedingNotice.type === 'success' ? <Check className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                  <span>{seedingNotice.text}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSeedLeagueToSupabase} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="lg:col-span-1">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">League Name *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Premier League Predictions 2026/27"
+                    value={supabaseLeagueName}
+                    onChange={(e) => setSupabaseLeagueName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Join Code (e.g. PL2627) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="PL2627"
+                    value={supabaseLeagueCode}
+                    onChange={(e) => setSupabaseLeagueCode(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white uppercase font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Description</label>
+                  <input
+                    type="text"
+                    placeholder="Description / rules of the league"
+                    value={supabaseLeagueDesc}
+                    onChange={(e) => setSupabaseLeagueDesc(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={isSeedingLeague}
+                    className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs py-2 px-3 rounded-lg shadow-md shadow-purple-600/30 flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    {isSeedingLeague ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    Push League to Supabase
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -1038,36 +1349,32 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                       <td className="py-3 px-3 text-slate-400">{l.adminName}</td>
                       <td className="py-3 px-3 text-slate-300 font-semibold">{l.memberCount || 1}</td>
                       <td className="py-3 px-3 text-right">
-                        {!isGlobal ? (
-                          deletingLeagueId === l.id ? (
-                            <div className="inline-flex items-center gap-1.5 animate-fade-in">
-                              <button
-                                onClick={() => {
-                                  if (onDeleteLeague) onDeleteLeague(l.id);
-                                  setDeletingLeagueId(null);
-                                }}
-                                className="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] rounded"
-                              >
-                                Confirm Delete
-                              </button>
-                              <button
-                                onClick={() => setDeletingLeagueId(null)}
-                                className="px-1.5 py-1 bg-slate-800 text-slate-400 hover:text-white text-[10px] rounded"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
+                        {deletingLeagueId === l.id ? (
+                          <div className="inline-flex items-center gap-1.5 animate-fade-in">
                             <button
-                              onClick={() => setDeletingLeagueId(l.id)}
-                              className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800"
-                              title="Delete mini-league"
+                              onClick={() => {
+                                if (onDeleteLeague) onDeleteLeague(l.id);
+                                setDeletingLeagueId(null);
+                              }}
+                              className="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[10px] rounded"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              Confirm Delete
                             </button>
-                          )
+                            <button
+                              onClick={() => setDeletingLeagueId(null)}
+                              className="px-1.5 py-1 bg-slate-800 text-slate-400 hover:text-white text-[10px] rounded"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         ) : (
-                          <span className="text-[10px] text-slate-500 italic">Default Global</span>
+                          <button
+                            onClick={() => setDeletingLeagueId(l.id)}
+                            className="p-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800"
+                            title="Delete league"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -1476,7 +1783,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 </button>
               </div>
               <p className="text-[11px] text-slate-400 mt-1">
-                If no external token is provided, the platform seamlessly uses the high-precision 2026/27 simulated live standings engine.
+                Provide your free API token from <strong className="text-purple-400">football-data.org</strong> to pull official live matchday standings and points automatically during the season. If left empty during pre-season, the table remains clean at 0 games played.
               </p>
             </div>
           </div>

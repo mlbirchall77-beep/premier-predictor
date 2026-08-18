@@ -20,6 +20,8 @@ import {
 } from '../data/mockData';
 import { supabaseService } from './supabaseService';
 import { isSupabaseConfigured } from './supabaseClient';
+import { getZeroStandings } from './footballApi';
+import { PREMIER_LEAGUE_TEAMS_2026_27 } from '../data/teams2026';
 
 const KEYS = {
   SUBMISSIONS: 'premier_predictor_submissions_2026',
@@ -249,35 +251,6 @@ export const storage = {
     this.deleteUserAndData(accountId);
   },
 
-  deleteLeague(leagueId: string): void {
-    // Cannot delete global league
-    if (leagueId === 'global' || leagueId === '00000000-0000-0000-0000-000000000001') {
-      return;
-    }
-    const leagues = this.getLeagues().filter(l => l.id !== leagueId);
-    this.saveLeagues(leagues);
-
-    // Remove this leagueId from any user submissions
-    const subs = this.getSubmissions();
-    let subsChanged = false;
-    subs.forEach(s => {
-      if (s.leagueIds.includes(leagueId)) {
-        s.leagueIds = s.leagueIds.filter(id => id !== leagueId);
-        subsChanged = true;
-      }
-    });
-    if (subsChanged) {
-      this.saveSubmissions(subs);
-    }
-
-    // Async delete in Supabase
-    if (supabaseService.isConfigured()) {
-      supabaseService.deleteLeague(leagueId).catch(err => {
-        console.warn('Background Supabase league delete:', err);
-      });
-    }
-  },
-
   // Categories
   getCategories(): PredictionCategory[] {
     return safeGet<PredictionCategory[]>(KEYS.CATEGORIES, DEFAULT_PREDICTION_CATEGORIES);
@@ -330,12 +303,33 @@ export const storage = {
   // Leagues
   getLeagues(): League[] {
     const isCleared = this.isDemoCleared();
-    const fallback = isCleared ? [GLOBAL_LEAGUE_DEFAULT] : INITIAL_LEAGUES;
+    const fallback = isCleared ? [] : INITIAL_LEAGUES;
     return safeGet<League[]>(KEYS.LEAGUES, fallback);
   },
 
   saveLeagues(leagues: League[]): void {
     safeSet(KEYS.LEAGUES, leagues);
+  },
+
+  deleteLeague(leagueId: string): void {
+    const leagues = this.getLeagues().filter(l => l.id !== leagueId);
+    this.saveLeagues(leagues);
+
+    // Clean references from submissions
+    const subs = this.getSubmissions();
+    subs.forEach(s => {
+      if (s.leagueIds) {
+        s.leagueIds = s.leagueIds.filter(id => id !== leagueId);
+      }
+    });
+    this.saveSubmissions(subs);
+
+    // Sync deletion to Supabase
+    if (supabaseService.isConfigured()) {
+      supabaseService.deleteLeague(leagueId).catch(err => {
+        console.warn('Background Supabase league deletion sync:', err);
+      });
+    }
   },
 
   createLeague(name: string, description: string, adminId: string, adminName: string): League {
@@ -407,7 +401,14 @@ export const storage = {
 
   // Live Standings
   getLiveStandings(): LivePlStanding[] {
-    return safeGet<LivePlStanding[]>(KEYS.LIVE_STANDINGS, INITIAL_LIVE_STANDINGS);
+    const stored = safeGet<LivePlStanding[] | null>(KEYS.LIVE_STANDINGS, null);
+    if (stored && Array.isArray(stored) && stored.length === 20) {
+      const allValid = stored.every(s => PREMIER_LEAGUE_TEAMS_2026_27.some(t => t.id === s.teamId));
+      if (allValid) {
+        return stored;
+      }
+    }
+    return INITIAL_LIVE_STANDINGS;
   },
 
   saveLiveStandings(standings: LivePlStanding[]): void {
@@ -456,6 +457,9 @@ export const storage = {
 
     // Reset leagues to only the global league
     this.saveLeagues([GLOBAL_LEAGUE_DEFAULT]);
+
+    // Reset live standings to pre-season zero table
+    this.saveLiveStandings(getZeroStandings());
 
     // Reset metrics
     const cleanMetrics: SiteMetrics = {

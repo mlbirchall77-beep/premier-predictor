@@ -45,7 +45,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
     s.teamName.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const activeLeague = leagues.find(l => l.id === selectedLeagueId) || leagues[0];
+  const activeLeague = leagues.find(l => l.id === selectedLeagueId) || leagues[0] || {
+    id: 'all',
+    name: 'All Predictors',
+    code: 'ALL',
+    isPublic: true,
+    adminName: 'Overall',
+    memberCount: submissions.length,
+  };
 
   const exportToCsv = () => {
     const headers = ['Rank', 'Predictor Name', 'Team Name', 'Total Points', 'Table Points', 'Exact Table Count', '+/-1 Pos Count', 'Bespoke Points'];
@@ -64,7 +71,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `premier-predictor-standings-${activeLeague.code.toLowerCase()}.csv`);
+    link.setAttribute('download', `premier-predictor-standings-${(activeLeague.code || 'overall').toLowerCase()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -102,6 +109,9 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
                 aria-label="Filter leaderboard by league"
                 className="bg-transparent text-white font-semibold focus:outline-none cursor-pointer pr-2"
               >
+                <option value="all" className="bg-slate-900 text-white">
+                  All Predictors (Overall Standings)
+                </option>
                 {leagues.map(l => (
                   <option key={l.id} value={l.id} className="bg-slate-900 text-white">
                     {l.name} ({l.memberCount || 1} members)

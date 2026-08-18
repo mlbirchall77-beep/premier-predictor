@@ -205,7 +205,7 @@ export const LeaguesManager: React.FC<LeaguesManagerProps> = ({
         {leagues.map((league) => {
           const isSelected = selectedLeagueId === league.id;
           const isGlobal = league.id === 'global' || league.id === '00000000-0000-0000-0000-000000000001';
-          const canDeleteThisLeague = currentUser.isAdmin && !isGlobal;
+          const canDeleteThisLeague = Boolean(currentUser.isAdmin);
 
           return (
             <div

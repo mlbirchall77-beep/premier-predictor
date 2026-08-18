@@ -215,10 +215,6 @@ export const supabaseService = {
           .filter(m => m.user_id === p.user_id)
           .map(m => m.league_id);
 
-        if (!userLeagues.includes('global') && !userLeagues.includes('00000000-0000-0000-0000-000000000001')) {
-          userLeagues.push('global');
-        }
-
         return {
           id: p.id,
           userId: p.user_id,
@@ -486,6 +482,89 @@ export const supabaseService = {
     } catch (err) {
       console.warn('Supabase deleteLeague error:', err);
       return false;
+    }
+  },
+
+  /**
+   * Seed / Insert a custom league directly into Supabase
+   */
+  async seedCustomLeague(name: string, code: string, description: string, isPublic: boolean, creatorEmail: string): Promise<{ success: boolean; error?: string; league?: any }> {
+    if (!this.isConfigured() || !supabase) {
+      return { success: false, error: 'Supabase is not configured. Please enter your Supabase URL & Key.' };
+    }
+
+    try {
+      // Find or create creator profile
+      let { data: prof } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', creatorEmail)
+        .maybeSingle();
+
+      if (!prof) {
+        const { data: newProf } = await supabase
+          .from('profiles')
+          .insert({
+            email: creatorEmail,
+            full_name: 'League Administrator',
+            team_name: 'Admin XI',
+            is_admin: true,
+          })
+          .select('id')
+          .single();
+        prof = newProf;
+      }
+
+      const { data: newLeague, error } = await supabase.from('leagues').insert({
+        name: name.trim(),
+        code: code.trim().toUpperCase(),
+        description: description.trim(),
+        is_public: isPublic,
+        created_by: prof?.id || null,
+        created_at: new Date().toISOString(),
+      }).select().single();
+
+      if (error) throw error;
+
+      if (newLeague && prof?.id) {
+        await supabase.from('league_members').upsert({
+          league_id: newLeague.id,
+          user_id: prof.id,
+          joined_at: new Date().toISOString(),
+        }, { onConflict: 'league_id,user_id' });
+      }
+
+      return { success: true, league: newLeague };
+    } catch (err: any) {
+      console.warn('Supabase seedCustomLeague error:', err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  },
+
+  /**
+   * Seed default bespoke categories into Supabase
+   */
+  async seedDefaultCategories(): Promise<{ success: boolean; error?: string }> {
+    if (!this.isConfigured() || !supabase) {
+      return { success: false, error: 'Supabase is not configured.' };
+    }
+
+    try {
+      const rows = DEFAULT_PREDICTION_CATEGORIES.map(c => ({
+        id: c.id,
+        title: c.title,
+        description: c.description,
+        category_type: c.type,
+        options: c.options || [],
+        is_default: c.isDefault,
+        points_value: c.pointsValue || 3,
+      }));
+
+      const { error } = await supabase.from('prediction_categories').upsert(rows, { onConflict: 'id' });
+      if (error) throw error;
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || String(err) };
     }
   },
 
