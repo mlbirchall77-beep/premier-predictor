@@ -303,41 +303,81 @@ export const supabaseService = {
   /**
    * Save / Upsert a User Prediction to Supabase
    */
-  async savePrediction(sub: UserPredictionSubmission, user: CurrentUser): Promise<boolean> {
-    if (!this.isConfigured() || !supabase) return false;
+  async savePrediction(sub: UserPredictionSubmission, user: CurrentUser): Promise<{ success: boolean; error?: string }> {
+    if (!this.isConfigured() || !supabase) {
+      return { success: false, error: 'Supabase is not configured' };
+    }
 
     try {
-      // 1. Upsert Profile
-      await supabase.from('profiles').upsert({
-        id: user.id.includes('-') ? user.id : undefined, // only pass valid UUIDs if applicable
-        email: user.email || `${user.id}@predictor.local`,
-        full_name: user.name,
-        team_name: user.teamName,
-        is_admin: user.isAdmin,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'email' });
+      const userEmail = (user.email || sub.email || '').trim().toLowerCase();
+      if (!userEmail) {
+        return { success: false, error: 'User email is required to sync predictions.' };
+      }
 
-      // Get profile ID
-      const { data: profile } = await supabase
+      // 1. Check if profile already exists for this email
+      const { data: profile, error: profFetchErr } = await supabase
         .from('profiles')
         .select('id')
-        .eq('email', user.email || `${user.id}@predictor.local`)
+        .eq('email', userEmail)
         .maybeSingle();
 
-      const profileId = profile?.id || user.id;
+      if (profFetchErr) {
+        console.warn('Profile fetch note:', profFetchErr);
+      }
+
+      let profileId: string;
+
+      if (profile?.id) {
+        profileId = profile.id;
+        // Update profile
+        await supabase
+          .from('profiles')
+          .update({
+            full_name: user.name || sub.userName,
+            team_name: user.teamName || sub.teamName,
+            is_admin: Boolean(user.isAdmin),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', profileId);
+      } else {
+        // Insert new profile
+        const { data: newProf, error: insErr } = await supabase
+          .from('profiles')
+          .insert({
+            email: userEmail,
+            full_name: user.name || sub.userName,
+            team_name: user.teamName || sub.teamName,
+            is_admin: Boolean(user.isAdmin),
+            updated_at: new Date().toISOString(),
+          })
+          .select('id')
+          .single();
+
+        if (insErr) {
+          console.error('Supabase profile creation error:', insErr);
+          throw insErr;
+        }
+        profileId = newProf.id;
+      }
 
       // 2. Upsert Prediction
-      await supabase.from('predictions').upsert({
+      const { error: predErr } = await supabase.from('predictions').upsert({
         user_id: profileId,
         table_prediction: sub.tablePrediction,
         bespoke_predictions: sub.bespokePredictions,
-        is_locked: sub.isLocked,
+        is_locked: Boolean(sub.isLocked),
         admin_override: Boolean(sub.adminOverride),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' });
 
-      // 3. Ensure global league membership
-      for (const lId of sub.leagueIds) {
+      if (predErr) {
+        console.error('Supabase prediction upsert error:', predErr);
+        throw predErr;
+      }
+
+      // 3. Ensure league memberships
+      const leagueIds = Array.isArray(sub.leagueIds) ? sub.leagueIds : ['global'];
+      for (const lId of leagueIds) {
         if (lId !== 'global') {
           await supabase.from('league_members').upsert({
             league_id: lId,
@@ -347,10 +387,10 @@ export const supabaseService = {
         }
       }
 
-      return true;
-    } catch (err) {
-      console.warn('Supabase savePrediction error:', err);
-      return false;
+      return { success: true };
+    } catch (err: any) {
+      console.error('Supabase savePrediction error:', err);
+      return { success: false, error: err?.message || String(err) };
     }
   },
 

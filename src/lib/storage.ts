@@ -106,14 +106,24 @@ export const storage = {
     safeSet(KEYS.SUBMISSIONS, submissions);
   },
 
-  getUserSubmission(userId: string): UserPredictionSubmission | undefined {
+  getUserSubmission(userId: string, email?: string): UserPredictionSubmission | undefined {
     const subs = this.getSubmissions();
-    return subs.find(s => s.userId === userId);
+    const cleanEmail = email?.trim().toLowerCase();
+    return subs.find(s => 
+      s.userId === userId || 
+      s.id === userId ||
+      (cleanEmail && s.email && s.email.toLowerCase() === cleanEmail)
+    );
   },
 
   saveUserSubmission(submission: UserPredictionSubmission): void {
     const subs = this.getSubmissions();
-    const index = subs.findIndex(s => s.userId === submission.userId || s.id === submission.id);
+    const cleanEmail = submission.email?.trim().toLowerCase();
+    const index = subs.findIndex(s => 
+      s.userId === submission.userId || 
+      s.id === submission.id ||
+      (cleanEmail && s.email && s.email.toLowerCase() === cleanEmail)
+    );
     const updatedSub = {
       ...submission,
       id: submission.id || `sub_${Date.now()}`,
@@ -131,7 +141,14 @@ export const storage = {
     // Async push to Supabase
     if (supabaseService.isConfigured()) {
       const currentUser = this.getCurrentUser();
-      supabaseService.savePrediction(updatedSub, currentUser).catch(err => {
+      const userToSave: CurrentUser = currentUser || {
+        id: submission.userId,
+        name: submission.userName,
+        email: submission.email || '',
+        teamName: submission.teamName,
+        isAdmin: false,
+      };
+      supabaseService.savePrediction(updatedSub, userToSave).catch(err => {
         console.warn('Background Supabase prediction sync:', err);
       });
     }

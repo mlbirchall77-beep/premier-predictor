@@ -95,6 +95,19 @@ export default function App() {
         if (Array.isArray(remoteData.submissions)) {
           storage.saveSubmissions(remoteData.submissions);
           setSubmissions(remoteData.submissions);
+          
+          // If current user is logged in, refresh their draft from Supabase
+          const activeUser = storage.getCurrentUser();
+          if (activeUser) {
+            const userSub = remoteData.submissions.find(s => 
+              s.userId === activeUser.id || 
+              (activeUser.email && s.email && s.email.toLowerCase() === activeUser.email.toLowerCase())
+            );
+            if (userSub && userSub.tablePrediction?.length === 20) {
+              setCurrentTablePrediction(userSub.tablePrediction);
+              setCurrentBespokePredictions(userSub.bespokePredictions || {});
+            }
+          }
         }
         if (Array.isArray(remoteData.leagues)) {
           storage.saveLeagues(remoteData.leagues);
@@ -127,17 +140,23 @@ export default function App() {
     setMetrics(storage.getMetrics());
   }, []);
 
-  // Sync draft whenever user changes
+  // Sync draft whenever user changes & ensure strict per-user isolation
   useEffect(() => {
-    if (!currentUser) return;
-    const existing = storage.getUserSubmission(currentUser.id);
-    if (existing) {
-      if (existing.tablePrediction?.length === 20) {
-        setCurrentTablePrediction(existing.tablePrediction);
-      }
-      setCurrentBespokePredictions(existing.bespokePredictions || {});
+    if (!currentUser) {
+      setCurrentTablePrediction(PREMIER_LEAGUE_TEAMS_2026_27.map(t => t.id));
+      setCurrentBespokePredictions({});
+      return;
     }
-  }, [currentUser?.id]);
+    const existing = storage.getUserSubmission(currentUser.id, currentUser.email);
+    if (existing && existing.tablePrediction && existing.tablePrediction.length === 20) {
+      setCurrentTablePrediction(existing.tablePrediction);
+      setCurrentBespokePredictions(existing.bespokePredictions || {});
+    } else {
+      // Clean slate for newly logged-in user without previous predictions
+      setCurrentTablePrediction(PREMIER_LEAGUE_TEAMS_2026_27.map(t => t.id));
+      setCurrentBespokePredictions({});
+    }
+  }, [currentUser?.id, currentUser?.email]);
 
   // If no user is logged in, show dedicated Login / Registration Gateway
   if (!currentUser) {
@@ -146,20 +165,31 @@ export default function App() {
         onLogin={(user) => {
           storage.setCurrentUser(user);
           setCurrentUser(user);
+          const existing = storage.getUserSubmission(user.id, user.email);
+          if (existing && existing.tablePrediction?.length === 20) {
+            setCurrentTablePrediction(existing.tablePrediction);
+            setCurrentBespokePredictions(existing.bespokePredictions || {});
+          } else {
+            setCurrentTablePrediction(PREMIER_LEAGUE_TEAMS_2026_27.map(t => t.id));
+            setCurrentBespokePredictions({});
+          }
         }}
         adminSettings={adminSettings}
       />
     );
   }
 
-  // Current User's active submission object
-  const userSubmission = submissions.find(s => s.userId === currentUser.id);
+  // Current User's active submission object (find by userId or email)
+  const userSubmission = submissions.find(s => 
+    s.userId === currentUser.id || 
+    (currentUser.email && s.email && s.email.toLowerCase() === currentUser.email.toLowerCase())
+  );
   const isSubmissionLocked = adminSettings.isPredictionsLocked || (userSubmission?.isLocked && !userSubmission?.adminOverride);
 
   // Compute live score for preview
   const currentDraftSubmission: UserPredictionSubmission = {
     id: userSubmission?.id || `sub_${currentUser.id}`,
-    userId: currentUser.id,
+    userId: userSubmission?.userId || currentUser.id,
     userName: currentUser.name,
     teamName: currentUser.teamName,
     email: currentUser.email,
@@ -174,19 +204,31 @@ export default function App() {
   const userLiveScore = calculateSubmissionScore(currentDraftSubmission, actualOutcomes, categories);
 
   // Handlers
-  const handleSavePredictions = (lockAfterSave = false) => {
+  const handleSavePredictions = async (lockAfterSave = false) => {
     const updatedSub: UserPredictionSubmission = {
       ...currentDraftSubmission,
       userName: currentUser.name,
       teamName: currentUser.teamName,
+      email: currentUser.email,
       isLocked: lockAfterSave ? true : Boolean(userSubmission?.isLocked),
       tablePrediction: currentTablePrediction,
       bespokePredictions: currentBespokePredictions,
       updatedAt: new Date().toISOString(),
     };
 
+    // 1. Save locally
     storage.saveUserSubmission(updatedSub);
     setSubmissions(storage.getSubmissions());
+
+    // 2. Direct async sync to Supabase with status confirmation
+    let dbStatus = false;
+    if (supabaseService.isConfigured()) {
+      const res = await supabaseService.savePrediction(updatedSub, currentUser);
+      dbStatus = res.success;
+      if (!res.success) {
+        console.warn('Supabase sync warning:', res.error);
+      }
+    }
 
     if (lockAfterSave) {
       confetti({
@@ -195,9 +237,17 @@ export default function App() {
         origin: { y: 0.6 },
         colors: ['#a855f7', '#6366f1', '#eab308', '#10b981'],
       });
-      setSubmitToast('🎉 Your 2026/27 Predictions are locked in and registered on the leaderboard!');
+      setSubmitToast(
+        dbStatus
+          ? '🎉 Predictions locked in & saved to cloud database!'
+          : '🎉 Predictions locked in (saved locally)!'
+      );
     } else {
-      setSubmitToast('💾 Draft predictions saved successfully!');
+      setSubmitToast(
+        dbStatus
+          ? '💾 Draft saved & synced to database!'
+          : '💾 Draft predictions saved locally!'
+      );
     }
 
     setTimeout(() => setSubmitToast(null), 4000);
@@ -267,6 +317,8 @@ export default function App() {
   const handleLogout = () => {
     storage.setCurrentUser(null);
     setCurrentUser(null);
+    setCurrentTablePrediction(PREMIER_LEAGUE_TEAMS_2026_27.map(t => t.id));
+    setCurrentBespokePredictions({});
   };
 
   return (
