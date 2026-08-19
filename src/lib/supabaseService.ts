@@ -9,6 +9,20 @@ import {
 } from '../types';
 import { DEFAULT_PREDICTION_CATEGORIES } from '../data/defaultCategories';
 
+function generateUuid(candidate?: string): string {
+  if (candidate && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candidate)) {
+    return candidate;
+  }
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export interface DatabaseTestResult {
   isConfigured: boolean;
   connected: boolean;
@@ -347,10 +361,12 @@ export const supabaseService = {
           })
           .eq('id', profileId);
       } else {
-        // Insert new profile
+        // Insert new profile with an explicit UUID primary key
+        const newId = generateUuid(user.id || sub.userId);
         const { data: newProf, error: insErr } = await supabase
           .from('profiles')
           .insert({
+            id: newId,
             email: userEmail,
             full_name: user.name || sub.userName,
             team_name: user.teamName || sub.teamName,
@@ -358,13 +374,13 @@ export const supabaseService = {
             updated_at: new Date().toISOString(),
           })
           .select('id')
-          .single();
+          .maybeSingle();
 
         if (insErr) {
           console.error('Supabase profile creation error:', insErr);
           throw insErr;
         }
-        profileId = newProf.id;
+        profileId = newProf?.id || newId;
       }
 
       // 2. Upsert Prediction
@@ -565,17 +581,23 @@ export const supabaseService = {
         .maybeSingle();
 
       if (!prof) {
-        const { data: newProf } = await supabase
+        const newId = generateUuid();
+        const { data: newProf, error: insErr } = await supabase
           .from('profiles')
           .insert({
+            id: newId,
             email: creatorEmail,
             full_name: 'League Administrator',
             team_name: 'Admin XI',
             is_admin: true,
           })
           .select('id')
-          .single();
-        prof = newProf;
+          .maybeSingle();
+
+        if (insErr) {
+          console.warn('Profile creator creation note:', insErr);
+        }
+        prof = newProf || { id: newId };
       }
 
       // Check if league with this code already exists

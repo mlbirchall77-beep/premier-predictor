@@ -981,7 +981,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    const rlsSql = `-- Grant full write/read access for all tables in Supabase SQL Editor
+                    const rlsSql = `-- 1. Ensure Profiles ID auto-generates if not supplied
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+ALTER TABLE IF EXISTS public.profiles ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+-- 2. Grant full write/read access for all tables in Supabase SQL Editor
 ALTER TABLE public.prediction_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leagues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.league_members ENABLE ROW LEVEL SECURITY;
